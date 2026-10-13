@@ -222,9 +222,17 @@
                     options: { emailRedirectTo: APP_ADRESSE + '/', data: { app: 'planer' } }
                 });
                 if (error) throw error;
+                // Gibt es zu dieser E-Mail schon ein Konto (z. B. aus der App Dienstplan), schickt Supabase keine Mail
+                // und liefert ein Konto ohne "identities" zurück - das dem Nutzer ehrlich sagen.
+                if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+                    authModusSetzen('login');
+                    zeigeMeldung('authMeldung',
+                        'Für diese E-Mail gibt es schon ein Konto (Planer und Dienstplan nutzen dasselbe Konto). Bitte melde dich mit diesem Passwort an – oder tippe auf „Passwort vergessen?".', 'fehler');
+                    return;
+                }
                 if (!data.session) {
                     zeigeMeldung('authMeldung',
-                        'Konto erstellt. Bitte bestätige jetzt die E-Mail, die dir geschickt wurde, und melde dich danach an.', 'ok');
+                        'Konto erstellt. Bitte bestätige jetzt die E-Mail, die dir geschickt wurde (auch im Spam-Ordner nachsehen), und melde dich danach an.', 'ok');
                     return;
                 }
                 await nutzerLaden();
