@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Planer</title>
+
+    <!-- PWA: Manifest, Icons, Theme-Farbe -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#FFD100">
+    <link rel="icon" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Planer">
+
+    <!-- Sicherheitsregel des Browsers: nur eigene Dateien und die Datenbank (Supabase). Daten dürfen nur dorthin gesendet werden. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+
+    <!-- Bibliotheken liegen lokal in vendor/libs (feste Versionen, laufen auch ohne Netz):
+         jsPDF 2.5.1 + AutoTable 3.8.2 (PDF-Export), supabase-js 2.116.0 (Anmeldung/Datenbank). -->
+    <script src="./vendor/libs/jspdf.umd.min.js"></script>
+    <script src="./vendor/libs/jspdf.plugin.autotable.min.js"></script>
+    <script src="./vendor/libs/supabase.min.js"></script>
+
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<div id="offlineHinweis" class="offline-hinweis" role="status" style="display:none;"></div>
+
+<!-- ANMELDEN / REGISTRIEREN -->
+<div id="authScreen">
+    <div class="auth-logo" aria-hidden="true">
+        <svg width="78" height="78" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2.5h10A3.5 3.5 0 0 1 20.5 6v10.5a1.5 1.5 0 0 1-1.5 1.5h-.5v2a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-2h-5v2A1.5 1.5 0 0 1 8 21.5H7A1.5 1.5 0 0 1 5.5 20v-2H5a1.5 1.5 0 0 1-1.5-1.5V6A3.5 3.5 0 0 1 7 2.5Zm-.5 3a1 1 0 0 0-1 1v3.5a1 1 0 0 0 1 1h4.75V5.5Zm6.25 0v5.5h4.75a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1Zm-6.25 8a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Zm11 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"></path></svg>
+        <span class="auth-logo-kalender"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18"></path><path d="M8 3v4"></path><path d="M16 3v4"></path></svg></span>
+    </div>
+    <h1 class="auth-name">PLANER</h1>
+    <p class="auth-slogan">Dienste und Verdienst im Blick</p>
+
+    <div class="auth-box">
+        <div class="segment" id="authSegment" role="tablist">
+            <button type="button" class="segment-btn aktiv" id="authTabLogin" onclick="authModusSetzen('login')">Anmelden</button>
+            <button type="button" class="segment-btn" id="authTabReg" onclick="authModusSetzen('registrieren')">Registrieren</button>
+        </div>
+        <p class="auth-hinweis" id="authHinweis">Melde dich mit deiner E-Mail-Adresse an.</p>
+
+        <div class="form-group" id="authEmailGruppe">
+            <label for="authEmail">E-Mail</label>
+            <input type="email" id="authEmail" autocomplete="email" placeholder="name@beispiel.de">
+        </div>
+        <div class="form-group">
+            <label for="authPasswort" id="authPasswortLabel">Passwort</label>
+            <input type="password" id="authPasswort" autocomplete="current-password">
+        </div>
+
+        <button onclick="authAbsenden()" id="authButton" class="btn-gross">Anmelden</button>
+        <div class="auth-umschalter" onclick="passwortVergessen()" id="authVergessen">Passwort vergessen?</div>
+        <div class="meldung" id="authMeldung"></div>
+    </div>
+</div>
+
+<!-- SEITE: Start -->
+<div class="page active" id="page-start">
+    <div class="start-kopf">
+        <div class="start-hallo"><span>Hallo!</span> <span class="start-datum" id="startDatum">–</span></div>
+        <button class="kopf-btn" onclick="toggleDarkMode()" aria-label="Hell/Dunkel umschalten">
+            <svg class="icon-mond" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path></svg>
+            <svg class="icon-sonne" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+        </button>
+        <button class="kopf-btn" onclick="oeffneMehrPanel()" aria-label="Mehr">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path></svg>
+        </button>
+    </div>
+
+    <div class="start-verdienst">
+        <div class="ueberschrift-klein" id="startMonatLabel">Verdienst</div>
+        <div class="start-brutto" id="startBrutto">–</div>
+        <div class="start-unter">brutto, Stand heute</div>
+        <div class="kapseln">
+            <span class="kapsel kapsel-stark" id="startSchichten">0 Dienste</span>
+            <span class="kapsel kapsel-stark" id="startStunden">–</span>
+            <span class="kapsel kapsel-leise" id="startZuschlaege">–</span>
+        </div>
+    </div>
+
+    <div class="start-knoepfe">
+        <button class="btn-primaer" onclick="wechselSeite('erfassen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>Dienst erfassen
+        </button>
+        <button class="btn-hell nur-hell" id="startAktuelleFahrtBtn" onclick="aktuelleFahrtOeffnen()" style="display:none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>Aktuelle Fahrt
+        </button>
+    </div>
+
+    <div class="karte" id="tarifErinnerung" style="display:none;">
+        <h3>Verdienst prüfen</h3>
+        <p class="auth-hinweis">Deine Verdienst-Einstellungen sind über ein Jahr alt. Nach einer Tarifrunde ändern sich die Werte – bitte einmal mit deiner aktuellen Abrechnung abgleichen.</p>
+        <button onclick="tarifErinnerungErledigt()">Jetzt prüfen</button>
+        <button class="btn-secondary" onclick="document.getElementById('tarifErinnerung').style.display='none'">Später</button>
+    </div>
+
+    <div id="startNaechsterBox" class="start-dienst" style="display:none;">
+        <div id="startNaechster"></div>
+        <button class="btn-umriss nur-dunkel" id="startAktuelleFahrtBtn2" onclick="aktuelleFahrtOeffnen()" style="display:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>Aktuelle Fahrt öffnen
+        </button>
+        <div id="bvgHinweiseStart" class="bvg-leiste" style="display:none;"></div>
+    </div>
+
+    <div class="karte-stark feiertag-karte">
+        <div>
+            <div class="ueberschrift-klein">Nächster Feiertag</div>
+            <div class="feiertag-name" id="startFeiertagName">–</div>
+        </div>
+        <div class="feiertag-datum" id="startFeiertagDatum"></div>
+    </div>
+
+    <div class="karte-stark nur-hell" id="startUebersichtHell">
+        <div class="karte-kopf"><h3>Monat im Überblick</h3><span id="startUebersichtMonat"></span></div>
+        <div id="startBalken"></div>
+        <div class="jahr-zeile" id="startJahrZeile"></div>
+    </div>
+
+    <div class="karte-stark nur-dunkel" id="startUebersichtDunkel">
+        <div class="karte-kopf"><h3>Stunden nach Art</h3></div>
+        <div id="startStapel"></div>
+        <div class="jahr-zeile" id="startJahrZeile2"></div>
+    </div>
+</div>
+
+<!-- SEITE: Aktuelle Fahrt (Fahrtbericht für unterwegs) -->
+<div class="page" id="page-aktuellefahrt">
+    <div class="seiten-kopf">
+        <button class="zurueck-btn" onclick="wechselSeite('start')" aria-label="Zurück"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <h1 class="seiten-titel">Aktuelle Fahrt</h1>
+    </div>
+    <div id="afInhalt"></div>
+    <div id="afNaechste"></div>
+    <div id="bvgHinweiseFahrt" class="bvg-leiste" style="display:none;"></div>
+</div>
+
+<!-- SEITE: Fehlermeldungen am Fahrerpult -->
+<div class="page" id="page-fehlermeldung">
+    <div class="seiten-kopf">
+        <button class="zurueck-btn" onclick="wechselSeite('start')" aria-label="Zurück"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <h1 class="seiten-titel">Fehlermeldungen</h1>
+    </div>
+    <div class="segment segment-gelb" id="fmTabs"></div>
+    <div class="suche">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M20 20l-4.3-4.3"></path></svg>
+        <input type="search" id="fmSuche" placeholder="Suchen: Tür, Batterie, Retarder …" oninput="fehlermeldungListeRendern()" aria-label="Suchen">
+    </div>
+    <div id="fmListe"></div>
+    <p class="seiten-hinweis">Symbol antippen, um die Bedeutung zu sehen.</p>
+</div>
+
+<!-- Fehlermeldung-Detail (schwarzes Fenster von unten) -->
+<div id="fmDetailOverlay" onclick="fehlermeldungDetailSchliessen(event)">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf">
+            <span class="sheet-etikett" id="fmDetailEtikett"></span>
+            <button class="kopf-btn kopf-btn-klein" onclick="fehlermeldungDetailSchliessen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt">
+            <img id="fmDetailBild" class="fm-gross" src="" alt="">
+            <p id="fmDetailText" class="fm-titel"></p>
+            <div id="fmDetailHinweis" class="fm-hinweis" style="display:none;"></div>
+        </div>
+        <button class="btn-primaer sheet-schliessen" onclick="fehlermeldungDetailSchliessen()">Schließen</button>
+    </div>
+</div>
+
+<!-- SEITE: Dienst erfassen -->
+<div class="page" id="page-erfassen">
+    <div class="seiten-kopf">
+        <h1 class="seiten-titel">Dienst erfassen</h1>
+        <button class="kopf-btn" id="erfassenAktionenBtn" style="display:none;" onclick="oeffneErfassenAktionen()" title="Aktionen" aria-label="Aktionen">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="18.5" cy="12" r="1.8"></circle></svg>
+        </button>
+    </div>
+
+    <div class="upload-box">
+        <input type="file" id="dienstplanPdf" accept="application/pdf,.pdf" multiple style="display:none;" onchange="dateienVerarbeiten(this)">
+        <button class="btn-gestrichelt" id="btnPdfImport" onclick="document.getElementById('dienstplanPdf').click()" title="Liest den Text direkt aus dem PDF">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5A1.5 1.5 0 0 1 7 3.5Z"></path><path d="M14 3.5V8h4"></path><path d="M8.5 12.5h7M8.5 15.5h7M8.5 9.5h2"></path></svg>Dienstplan-PDF importieren
+        </button>
+        <div id="statusText"></div>
+    </div>
+
+    <div id="bvgHinweiseErfassen" class="bvg-karte" style="display:none;"></div>
+
+    <div id="stapelBox" class="karte" style="display:none;">
+        <h3>Erkannte Dienste</h3>
+        <div id="stapelListe"></div>
+        <button class="btn-save" id="stapelSpeichern" onclick="stapelAlleSpeichern()" style="display:none;">Alle speichern</button>
+    </div>
+
+    <div class="karte">
+        <div class="row">
+            <div class="form-group">
+                <label for="datum">Datum</label>
+                <input type="date" id="datum">
+            </div>
+            <div class="form-group">
+                <label for="dienstnummer">Dienstnummer</label>
+                <input type="text" id="dienstnummer" placeholder="z. B. 3104" maxlength="20">
+            </div>
+        </div>
+        <input type="hidden" id="stundenlohn" value="20.64">
+
+        <div class="row">
+            <div class="form-group">
+                <label for="start">Beginn</label>
+                <input type="time" id="start" class="zeit-feld" value="12:45">
+            </div>
+            <div class="form-group">
+                <label for="ende">Ende</label>
+                <input type="time" id="ende" class="zeit-feld" value="21:10">
+            </div>
+        </div>
+
+        <button type="button" class="link-btn" id="endeTatsaechlichZeigen" onclick="endeTatsaechlichAnzeigen()">+ Tatsächliches Ende angeben (optional)</button>
+        <div class="form-group" id="endeTatsaechlichBereich" style="display:none;">
+            <label for="endeTatsaechlich">Tatsächliches Ende (optional)</label>
+            <input type="time" id="endeTatsaechlich">
+        </div>
+
+        <div class="form-group">
+            <label id="pausenregelLabel">Pausenregel</label>
+            <input type="hidden" id="pausenregel" value="B30">
+            <div class="segment" id="pausenregelSegment" role="group" aria-labelledby="pausenregelLabel">
+                <button type="button" class="segment-btn aktiv" data-regel="B30" onclick="pausenregelSetzen('B30')">B30</button>
+                <button type="button" class="segment-btn" data-regel="sechste" onclick="pausenregelSetzen('sechste')">Sechstel</button>
+                <button type="button" class="segment-btn" data-regel="reserve" onclick="pausenregelSetzen('reserve')">Reserve</button>
+            </div>
+            <div class="auth-hinweis" id="pausenregelHinweis" style="margin-top:6px;"></div>
+        </div>
+
+        <div class="form-group" id="pausenBereich">
+            <label>Unbezahlte Pausen</label>
+            <div id="sechsteHinweis" class="auth-hinweis" style="display:none; margin-bottom:8px;">Bei „Sechstel" muss jede Pause mind. 10 Min. dauern (8 Min. Mindestdauer + 2 Min. Nacharbeit).</div>
+            <div id="pausenListe"></div>
+            <button class="btn-secondary" onclick="pauseHinzufuegen()">+ Pause hinzufügen</button>
+            <div id="pausenSumme" class="auth-hinweis" style="margin-top:6px;"></div>
+        </div>
+
+        <input type="hidden" id="pause" value="0">
+        <input type="hidden" id="bundesland" value="BE">
+
+        <div class="form-group">
+            <label for="feiertagsArt">Feiertag / Sonderregelung</label>
+            <select id="feiertagsArt" onchange="mehrarbeitHinweisAktualisieren(); berechneSchicht();">
+                <option value="normal">Kein Feiertag / Normaler Tag</option>
+                <option value="feiertag">Gesetzlicher Feiertag (+135%)</option>
+                <option value="sonderstichtag">Sondertag (Vor Ostersonntag/Pfingsten, 24./31.12.) (+40%)</option>
+                <option value="mehrarbeit">Mehrarbeit: kompletter offener Dienst (+30% + Grundvergütung)</option>
+                <option value="mehrarbeit_feiertag">Mehrarbeit an einem Feiertag (+135%, +30% + Grundvergütung)</option>
+                <option value="mehrarbeit_sonderstichtag">Mehrarbeit an einem Sondertag (+40%, +30% + Grundvergütung)</option>
+            </select>
+            <div id="feiertagHinweis" class="auth-hinweis" style="margin-top:6px;"></div>
+            <div id="mehrarbeitHinweis" class="auth-hinweis" style="margin-top:6px; display:none;">
+                Zählt nicht zum regulären Dienstplan → die volle Vergütung für diesen Tag (nicht nur der Zuschlag) kommt zusätzlich zum Monatslohn dazu.
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-primaer btn-gross" onclick="berechneSchicht()">BERECHNEN</button>
+
+    <div class="karte-stark" id="ausgabe" style="display:none;">
+        <div class="karte-kopf"><h3>Auswertung</h3><span id="resDatum"></span></div>
+        <div class="auswertung-gross" id="resGesamt">–</div>
+        <div class="auswertung-unter" id="resGesamtLabel">Zuschläge gesamt</div>
+
+        <div class="result-item"><span class="label">Bezahlte Arbeitszeit</span><span id="resNetto" class="wert">–</span></div>
+        <div class="result-item"><span class="label">Nacht (+25 %)</span><span id="resNacht" class="wert">–</span></div>
+        <div class="result-item"><span class="label">Samstag (+20 %)</span><span id="resSamstag" class="wert">–</span></div>
+        <div class="result-item"><span class="label">Sonntag (+25 %)</span><span id="resSonntag" class="wert">–</span></div>
+        <div class="result-item"><span class="label">Feiertag (+135 %)</span><span id="resFeiertag" class="wert">–</span></div>
+        <div class="result-item"><span class="label">Sondertag (+40 %)</span><span id="resSonder" class="wert">–</span></div>
+        <div class="result-item"><span class="label">Mehrarbeit (+30 %)</span><span id="resMehrarbeit" class="wert">–</span></div>
+        <div class="result-item" id="resGrundZeile" style="display:none;"><span class="label">Grundvergütung (ganzer Tag)</span><span id="resGrundverguetung" class="wert">–</span></div>
+
+        <div id="kontrolleBox" class="kontrolle-box" style="display:none;"></div>
+
+        <button class="btn-save" onclick="speichereTagInKalender()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 9.5 17 19 6.5"></path></svg>Im Kalender speichern
+        </button>
+    </div>
+</div>
+
+<div id="erfassenAktionenOverlay" onclick="if(event.target===this) schliesseErfassenAktionen()">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf"><span class="sheet-etikett">Aktionen</span>
+            <button class="kopf-btn kopf-btn-klein" onclick="schliesseErfassenAktionen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt sheet-knoepfe">
+            <div id="verlaufHinweis" style="display:none;">
+                <button class="btn-umriss" onclick="schliesseErfassenAktionen(); wechselSeite('verlauf');">Dienstverlauf ansehen</button>
+            </div>
+            <button class="btn-umriss" onclick="schliesseErfassenAktionen(); exportToGoogleCalendar();">Einzelne Schicht in Google Kalender eintragen</button>
+            <button class="btn-danger" id="btnDelete" style="display:none;" onclick="schliesseErfassenAktionen(); loescheTagAusKalender();">Schicht für diesen Tag löschen</button>
+        </div>
+    </div>
+</div>
+
+<!-- SEITE: Kalender -->
+<div class="page" id="page-kalender">
+    <div class="monat-kopf">
+        <button class="kopf-btn" onclick="wechselMonat(-1)" aria-label="Vorheriger Monat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <h1 class="seiten-titel" id="calendarMonthTitle">Monat Jahr</h1>
+        <button class="kopf-btn" onclick="wechselMonat(1)" aria-label="Nächster Monat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></button>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+    <div class="legende">
+        <span><i class="l-dienst"></i> Dienst</span>
+        <span><i class="l-feiertag"></i> Feiertag</span>
+        <span><i class="l-urlaub"></i> Urlaub</span>
+        <span><i class="l-krank"></i> Krank</span>
+        <span><i class="l-frei"></i> Frei</span>
+    </div>
+    <div id="kalenderTagKarte"></div>
+    <p class="seiten-hinweis">Freien Tag antippen: Dienst erfassen, Krank, Urlaub oder Frei eintragen.</p>
+</div>
+
+<div id="kalenderWahlOverlay" onclick="if(event.target===this) kalenderWahlSchliessen()">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf"><span class="sheet-etikett" id="kalenderWahlDatum">Datum</span>
+            <button class="kopf-btn kopf-btn-klein" onclick="kalenderWahlSchliessen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt sheet-knoepfe">
+            <button class="btn-primaer" onclick="kalenderWahlDienst()">Dienst erfassen</button>
+            <button class="btn-umriss" onclick="kalenderWahlKrank()">Als krank melden</button>
+            <button class="btn-umriss" onclick="kalenderWahlUrlaub()">Urlaub eintragen</button>
+            <button class="btn-umriss" onclick="kalenderWahlFrei()">Frei markieren</button>
+        </div>
+    </div>
+</div>
+
+<div id="krankOverlay" onclick="if(event.target===this) krankFormularSchliessen()">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf"><span class="sheet-etikett" id="krankTitel">Krank melden</span>
+            <button class="kopf-btn kopf-btn-klein" onclick="krankFormularSchliessen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt">
+            <p class="auth-hinweis" id="krankHinweis" style="margin-top:0;">Krankheitsaufschlag nach § 14 Abs. 1 i. V. m. § 6 Abs. 3 TV-N Berlin: Durchschnitt deiner Zuschläge der letzten drei Monate × ausgefallene Stunden.</p>
+            <div class="row">
+                <div class="form-group">
+                    <label for="krankVon">Von</label>
+                    <input type="date" id="krankVon" oninput="krankBerechnen()">
+                </div>
+                <div class="form-group">
+                    <label for="krankBis">Bis</label>
+                    <input type="date" id="krankBis" oninput="krankBerechnen()">
+                </div>
+            </div>
+            <div class="form-group" id="krankStundenBereich">
+                <label for="krankStunden">Ausgefallene Stunden pro Tag</label>
+                <input type="number" id="krankStunden" step="0.25" min="0" oninput="krankBerechnen()">
+            </div>
+            <div id="krankErgebnis"></div>
+            <button class="btn-primaer" onclick="krankSpeichern()" style="margin-top:14px;">Speichern</button>
+            <button class="btn-danger" id="krankLoeschenBtn" style="display:none;" onclick="krankLoeschen()">Diesen Tag löschen</button>
+        </div>
+    </div>
+</div>
+
+<!-- SEITE: Dienstliste -->
+<div class="page" id="page-liste">
+    <div class="seiten-kopf">
+        <h1 class="seiten-titel">Dienstliste</h1>
+        <button class="kopf-btn kopf-btn-text" onclick="oeffneListeAktionen()" title="Exportieren" aria-label="Als PDF exportieren">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11.5M8 11l4 4 4-4"></path><path d="M4.5 17.5v2A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5v-2"></path></svg>PDF
+        </button>
+    </div>
+    <div class="monat-wahl">
+        <button class="kopf-btn kopf-btn-klein" onclick="listeMonatWechseln(-1)" aria-label="Vorheriger Monat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <span id="listeTitel">Monat Jahr</span>
+        <button class="kopf-btn kopf-btn-klein" onclick="listeMonatWechseln(1)" aria-label="Nächster Monat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></button>
+    </div>
+    <div id="listeInhalt"></div>
+</div>
+
+<div id="listeAktionenOverlay" onclick="if(event.target===this) schliesseListeAktionen()">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf"><span class="sheet-etikett">Als PDF speichern</span>
+            <button class="kopf-btn kopf-btn-klein" onclick="schliesseListeAktionen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt sheet-knoepfe">
+            <button class="btn-primaer" onclick="schliesseListeAktionen(); listeAlsPdf();">Dienstübersicht (dieser Monat)</button>
+            <button class="btn-umriss" onclick="schliesseListeAktionen(); listeAlsPdfVerpflegung();">Verpflegungsmehraufwand (Monat)</button>
+            <button class="btn-umriss" onclick="schliesseListeAktionen(); listeAlsPdfVerpflegungJahr();">Verpflegungsmehraufwand (Jahr)</button>
+        </div>
+    </div>
+</div>
+
+<!-- SEITE: Dienstverlauf -->
+<div class="page" id="page-verlauf">
+    <div class="seiten-kopf seiten-kopf-hoch">
+        <button class="zurueck-btn" onclick="wechselSeite('start')" aria-label="Zurück"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <div>
+            <h1 class="seiten-titel">Dienstverlauf</h1>
+            <div class="seiten-unter" id="verlaufTitel"></div>
+        </div>
+    </div>
+    <div id="verlaufLeer" class="seiten-hinweis" style="margin-top:0;">
+        Noch kein Dienst geladen. Erfasse zuerst eine Schicht oder wähle einen Tag im Kalender.
+    </div>
+    <div id="dienstDetails" style="display:none;">
+        <div class="karte-stark" id="dienstDetailsInhalt"></div>
+        <div id="bvgHinweiseVerlauf" class="bvg-karte" style="display:none;"></div>
+
+        <div class="ereignisse-kopf">
+            <h2>Ereignisse</h2>
+            <button class="kopf-btn kopf-btn-text" onclick="ereignisFotoButton()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5a2 2 0 0 1 2-2h1.2l1-1.5h7.6l1 1.5H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8.5Z"></path><circle cx="12" cy="13" r="3.1"></circle></svg>Foto
+            </button>
+        </div>
+        <input type="file" id="ereignisBild" accept="image/*" style="display:none" onchange="ereignisDateiVerarbeiten(this)">
+        <div id="ereignisListe"></div>
+
+        <button class="btn-primaer teilen-btn" onclick="verlaufExternTeilen()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.6"></circle><circle cx="17.5" cy="6" r="2.6"></circle><circle cx="17.5" cy="18" r="2.6"></circle><path d="m8.3 10.7 6.9-3.4M8.3 13.3l6.9 3.4"></path></svg>Teilen (WhatsApp &amp; Co.)
+        </button>
+    </div>
+</div>
+
+<!-- Ereignis: Titel eingeben, bevor gespeichert wird -->
+<div id="ereignisTitelOverlay" onclick="if(event.target===this) ereignisTitelAbbrechen()">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf"><span class="sheet-etikett">Ereignis speichern</span>
+            <button class="kopf-btn kopf-btn-klein" onclick="ereignisTitelAbbrechen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt">
+            <img id="ereignisTitelBild" class="ereignis-vorschau" src="" alt="">
+            <div class="form-group">
+                <label for="ereignisTitelEingabe">Titel (optional)</label>
+                <input type="text" id="ereignisTitelEingabe" placeholder="z. B. Meldeformular, Mängelzettel" maxlength="100">
+            </div>
+            <button class="btn-primaer" onclick="ereignisTitelSpeichern()">Speichern</button>
+            <button class="btn-umriss" onclick="ereignisTitelAbbrechen()">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Ereignis-Detail (Foto gross) -->
+<div id="ereignisDetailOverlay" onclick="ereignisDetailSchliessen(event)">
+    <div class="sheet" onclick="event.stopPropagation()">
+        <div class="sheet-griff"></div>
+        <div class="sheet-kopf"><span class="sheet-etikett" id="ereignisDetailTitel">Ereignis</span>
+            <button class="kopf-btn kopf-btn-klein" onclick="ereignisDetailSchliessen()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="sheet-inhalt">
+            <img id="ereignisDetailBild" class="ereignis-vorschau" src="" alt="">
+        </div>
+    </div>
+</div>
+
+<!-- SEITE: Verdienst einrichten (nach der ersten Anmeldung) -->
+<div class="page" id="page-einrichten">
+    <div class="ueberschrift-klein">Willkommen bei Planer</div>
+    <h1 class="einrichten-titel">Verdienst<br>einrichten</h1>
+    <p class="einrichten-text">Wähle deine Entgeltgruppe und Stufe. Das Monatsentgelt wird dann automatisch aus der TV-N-Berlin-Tabelle übernommen.</p>
+
+    <div class="karte">
+        <div class="form-group">
+            <label for="einrEG">Entgeltgruppe</label>
+            <select id="einrEG" onchange="tarifVorschau()"></select>
+        </div>
+        <div class="form-group">
+            <label id="einrStufeLabel">Stufe</label>
+            <input type="hidden" id="einrStufe" value="">
+            <div class="stufen" id="einrStufen"></div>
+        </div>
+        <div class="monatsentgelt-box" id="tarifVorschauBox">
+            <span>Monatsentgelt</span><span id="tarifBetrag">–</span>
+        </div>
+        <div class="auth-hinweis" id="tarifGueltig" style="margin:8px 0 0 0;"></div>
+    </div>
+
+    <p class="einrichten-text">Wochenstunden, Zulagen und das Zuschlagsentgelt sind bei jedem anders. Trage sie danach in den Einstellungen so ein, wie sie auf deiner Verdienstabrechnung stehen.</p>
+
+    <div class="meldung" id="einrMeldung"></div>
+    <button class="btn-primaer btn-gross" onclick="tarifUebernehmen()">ÜBERNEHMEN UND WEITER</button>
+    <button class="btn-umriss" onclick="einrichtungUeberspringen()">Später einrichten</button>
+</div>
+
+<!-- SEITE: Einstellungen -->
+<div class="page" id="page-einstellungen">
+    <div class="seiten-kopf">
+        <button class="zurueck-btn" onclick="wechselSeite('start')" aria-label="Zurück"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <h1 class="seiten-titel">Einstellungen</h1>
+    </div>
+
+    <div class="karte">
+        <div class="karte-kopf"><h3>Verdienst</h3><span class="plakette">TV-N Berlin</span></div>
+        <p class="auth-hinweis" style="margin-top:0;">Die Werte stehen auf deiner Verdienstabrechnung.</p>
+        <div class="row">
+            <div class="form-group">
+                <label for="setEG">Entgeltgruppe</label>
+                <select id="setEG" onchange="tarifInEinstellungen()"></select>
+            </div>
+            <div class="form-group">
+                <label for="setStufe">Stufe</label>
+                <select id="setStufe" onchange="tarifInEinstellungen()"></select>
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group">
+                <label for="einMonatsentgelt">Monatsentgelt €</label>
+                <input type="number" id="einMonatsentgelt" step="0.01" min="0" placeholder="3365.46">
+            </div>
+            <div class="form-group">
+                <label for="einWochenstunden">Wochenstunden</label>
+                <input type="number" id="einWochenstunden" step="0.5" min="0" placeholder="37.5">
+            </div>
+        </div>
+        <div class="auth-hinweis" id="tarifHinweis" style="margin:-8px 0 12px 0;"></div>
+        <div class="row">
+            <div class="form-group">
+                <label for="einUnregelm">Unregelm. Dienste €</label>
+                <input type="number" id="einUnregelm" step="0.01" min="0" placeholder="255.00">
+            </div>
+            <div class="form-group">
+                <label for="einDienstklasse">Pausch. Dienstkl. €</label>
+                <input type="number" id="einDienstklasse" step="0.01" min="0" placeholder="80.00">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="einZZ">Entgelt stdl. ZZ € (Basis Zuschläge)</label>
+            <input type="number" id="einZZ" step="0.01" min="0" placeholder="19.85">
+        </div>
+    </div>
+
+    <details class="einst-abschnitt" open>
+        <summary>Zuschlagssätze (%)</summary>
+        <div class="einst-inhalt">
+            <div class="zuschlag-raster">
+                <div class="zuschlag-feld"><label for="einNacht">Nacht</label><input type="number" id="einNacht" step="1" min="0" placeholder="25"></div>
+                <div class="zuschlag-feld"><label for="einSamstag">Samstag</label><input type="number" id="einSamstag" step="1" min="0" placeholder="20"></div>
+                <div class="zuschlag-feld"><label for="einSonntag">Sonntag</label><input type="number" id="einSonntag" step="1" min="0" placeholder="25"></div>
+                <div class="zuschlag-feld"><label for="einFeiertag">Feiertag</label><input type="number" id="einFeiertag" step="1" min="0" placeholder="135"></div>
+                <div class="zuschlag-feld"><label for="einSonder">Sondertag</label><input type="number" id="einSonder" step="1" min="0" placeholder="40"></div>
+                <div class="zuschlag-feld"><label for="einMehrarbeit">Mehrarbeit</label><input type="number" id="einMehrarbeit" step="1" min="0" placeholder="30"></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="einst-abschnitt">
+        <summary>Zeitfenster (Nacht, Samstag)</summary>
+        <div class="einst-inhalt">
+            <div class="zuschlag-raster">
+                <div class="zuschlag-feld"><label for="einNachtVon">Nacht ab (Uhr)</label><input type="number" id="einNachtVon" step="1" min="0" max="23" placeholder="21"></div>
+                <div class="zuschlag-feld"><label for="einNachtBis">Nacht bis (Uhr)</label><input type="number" id="einNachtBis" step="1" min="0" max="23" placeholder="6"></div>
+                <div class="zuschlag-feld"><label for="einSamstagAb">Samstag ab (Uhr)</label><input type="number" id="einSamstagAb" step="1" min="0" max="23" placeholder="13"></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="einst-abschnitt">
+        <summary>Verpflegungsmehraufwand</summary>
+        <div class="einst-inhalt">
+            <div class="zuschlag-feld">
+                <label for="einFahrzeit">Fahrzeit je Richtung (Min.)</label>
+                <input type="number" id="einFahrzeit" step="1" min="0" placeholder="30">
+            </div>
+            <div class="auth-hinweis" style="margin-top:8px;">Für die 8-Stunden-Grenze zählt die Abwesenheit von der Wohnung: Anfahrt + Dienstzeit + Rückfahrt.</div>
+        </div>
+    </details>
+
+    <div class="karte">
+        <div class="form-group" style="margin-bottom:0;">
+            <label for="einName">Name für die PDFs (optional)</label>
+            <input type="text" id="einName" placeholder="Vorname Nachname" maxlength="80" autocomplete="name">
+        </div>
+    </div>
+
+    <div class="karte">
+        <div class="form-group">
+            <label for="einBundesland">Bundesland (für Feiertage)</label>
+            <select id="einBundesland"></select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label id="darstellungLabel">Darstellung</label>
+            <div class="segment segment-hell" id="darstellungSegment" role="group" aria-labelledby="darstellungLabel">
+                <button type="button" class="segment-btn" data-wert="auto" onclick="darstellungSetzen('auto')">Automatisch</button>
+                <button type="button" class="segment-btn" data-wert="hell" onclick="darstellungSetzen('hell')">Hell</button>
+                <button type="button" class="segment-btn" data-wert="dunkel" onclick="darstellungSetzen('dunkel')">Dunkel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="meldung" id="einMeldung"></div>
+    <button class="btn-primaer btn-gross" onclick="einstellungenSpeichern()">SPEICHERN</button>
+</div>
+
+<!-- SEITE: Haltestellen (eigene Liste) -->
+<div class="page" id="page-haltestellen">
+    <div class="seiten-kopf">
+        <button class="zurueck-btn" onclick="wechselSeite('start')" aria-label="Zurück"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <h1 class="seiten-titel">Haltestellen</h1>
+    </div>
+    <p class="seiten-hinweis" style="margin-top:0;">Deine eigene Liste: Kürzel aus dem Dienstplan und der volle Name. Sie wächst beim PDF-Import automatisch mit.</p>
+    <div class="karte">
+        <div class="row">
+            <div class="form-group">
+                <label for="hsKuerzel">Kürzel</label>
+                <input type="text" id="hsKuerzel" placeholder="UJTC03" maxlength="20">
+            </div>
+            <div class="form-group">
+                <label for="hsName">Voller Name</label>
+                <input type="text" id="hsName" placeholder="U Johannisthaler Chaussee" maxlength="100">
+            </div>
+        </div>
+        <button class="btn-primaer" onclick="haltestelleSpeichern()" style="margin-top:0;">Speichern</button>
+        <div class="meldung" id="hsMeldung"></div>
+    </div>
+    <div class="suche">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M20 20l-4.3-4.3"></path></svg>
+        <input type="search" id="hsSuche" placeholder="Suchen …" oninput="haltestellenRendern()" aria-label="Suchen">
+    </div>
+    <div id="hsListe" class="karte-stark hs-liste">Lade...</div>
+</div>
+
+<!-- Mehr-Menü: schiebt sich von rechts auf -->
+<div id="mehrPanelBackdrop" onclick="schliesseMehrPanel()"></div>
+<aside id="mehrPanel" aria-label="Mehr">
+    <div class="mehr-panel-kopf">
+        <span class="mehr-logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3"></rect><path d="M4 11h16"></path><path d="M12 3v8"></path><path d="M7 21v-3"></path><path d="M17 21v-3"></path></svg></span>
+        <h2>Mehr</h2>
+        <button class="kopf-btn kopf-btn-klein" onclick="schliesseMehrPanel()" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+    </div>
+    <div class="mehr-panel-inhalt">
+        <button class="menue-punkt" onclick="schliesseMehrPanel(); wechselSeite('verlauf');">
+            <span class="menue-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3.2 2"></path></svg></span>
+            <span class="menue-text"><b>Dienstverlauf</b><small>Ablauf und Ereignisse</small></span>
+            <span class="menue-pfeil"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </button>
+        <button class="menue-punkt" onclick="schliesseMehrPanel(); wechselSeite('liste');">
+            <span class="menue-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12"></path><path d="M4 6h.01M4 12h.01M4 18h.01"></path></svg></span>
+            <span class="menue-text"><b>Dienstliste</b><small>Monatsliste und PDFs</small></span>
+            <span class="menue-pfeil"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </button>
+        <button class="menue-punkt" onclick="schliesseMehrPanel(); wechselSeite('fehlermeldung');">
+            <span class="menue-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 21.5 20h-19L12 3.5Z"></path><path d="M12 10v4"></path><path d="M12 16.8h.01"></path></svg></span>
+            <span class="menue-text"><b>Fehlermeldungen</b><small>Bus-Symbole nachschlagen</small></span>
+            <span class="menue-pfeil"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </button>
+        <button class="menue-punkt" onclick="schliesseMehrPanel(); wechselSeite('haltestellen');">
+            <span class="menue-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg></span>
+            <span class="menue-text"><b>Haltestellen</b><small>Kürzel und Namen</small></span>
+            <span class="menue-pfeil"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </button>
+        <button class="menue-punkt" onclick="schliesseMehrPanel(); wechselSeite('einstellungen');">
+            <span class="menue-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg></span>
+            <span class="menue-text"><b>Einstellungen</b><small>Verdienst, Zuschläge, Name</small></span>
+            <span class="menue-pfeil"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </button>
+    </div>
+    <div class="mehr-panel-fuss">
+        <button class="mehr-schalter" onclick="toggleDarkMode()" role="switch" id="mehrDunkelSchalter" aria-checked="false">
+            <span class="menue-icon-klein"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path></svg></span>
+            <span class="menue-schalter-text">Dunkelmodus</span>
+            <span class="schalter"><span class="schalter-knopf"></span></span>
+        </button>
+        <button class="btn-umriss mehr-abmelden" onclick="schliesseMehrPanel(); abmelden();">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20.5H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h3"></path><path d="M15.5 16.5 20.5 12l-5-4.5"></path><path d="M20 12H9.5"></path></svg>Abmelden
+        </button>
+    </div>
+</aside>
+
+<nav class="tabbar" aria-label="Hauptmenü">
+    <button class="tab-btn active" id="tab-start" onclick="wechselSeite('start')">
+        <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"></path><path d="M5 10v10h14V10"></path></svg></span>Start
+    </button>
+    <button class="tab-btn" id="tab-erfassen" onclick="wechselSeite('erfassen')">
+        <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></span>Erfassen
+    </button>
+    <button class="tab-btn" id="tab-kalender" onclick="wechselSeite('kalender')">
+        <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18"></path><path d="M8 3v4"></path><path d="M16 3v4"></path></svg></span>Kalender
+    </button>
+    <button class="tab-btn" id="tab-liste" onclick="wechselSeite('liste')">
+        <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12"></path><path d="M4 6h.01M4 12h.01M4 18h.01"></path></svg></span>Liste
+    </button>
+</nav>
+
+<script src="./pdf-import.js"></script>
+<script src="./app.js"></script>
+
+</body>
+</html>
