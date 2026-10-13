@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Homescreen-Widget "Aktuelle Fahrt" -->
+        <receiver
+            android:name=".widget.AktuelleFahrtWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/aktuelle_fahrt_widget_info" />
+        </receiver>
+        <!-- Homescreen-Widget "Kalender" -->
+        <receiver
+            android:name=".widget.KalenderWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/kalender_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.KalenderNavReceiver"
+            android:exported="false" />
+        <!-- Einstellungen der Widgets (Hintergrund-Deckkraft), beim Hinzufuegen und per langem Druck -->
+        <activity
+            android:name=".widget.WidgetKonfigActivity"
+            android:theme="@style/WidgetKonfigTheme"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+        <receiver
+            android:name=".widget.WidgetUpdateReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".widget.WidgetNavReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".widget.WidgetTagNavReceiver"
+            android:exported="false" />
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Fuer punktgenaue Widget-Updates (Wende-/Pausenwechsel). Ohne diese Erklaerung bleibt der
+         Schalter "Alarme & Erinnerungen" in den Android-Einstellungen ausgegraut und laesst sich
+         gar nicht erst einschalten. Der Code fragt trotzdem nie danach und stuerzt nie ab, wenn sie
+         fehlt (siehe WidgetBridgePlugin) - das Widget aktualisiert sich dann nur alle 30 Min. selbst. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+</manifest>

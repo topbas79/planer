@@ -126,6 +126,8 @@ a { color: inherit; }
 /* nur im Hell- bzw. Dunkelmodus sichtbar */
 body.dark .nur-hell { display: none !important; }
 body:not(.dark) .nur-dunkel { display: none !important; }
+/* nur in der nativen Android-App sichtbar (Widgets ...) */
+body:not(.ist-nativ) .nur-nativ { display: none !important; }
 
 .page { display: none; }
 .page.active { display: block; }

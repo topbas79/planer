@@ -1,0 +1,30 @@
+{
+  "name": "planer",
+  "version": "1.0.0",
+  "description": "Planer - Dienste und Verdienst im Blick",
+  "private": true,
+  "scripts": {
+    "cap:sync": "node scripts/sync-www.js && npx cap sync android",
+    "cap:open": "npx cap open android"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/topbas79/planer.git"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/camera": "^8.2.4",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/share": "^8.0.1"
+  },
+  "allowScripts": {
+    "sharp@0.32.6": true
+  }
+}

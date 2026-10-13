@@ -254,6 +254,10 @@
         if (!confirm('Wirklich abmelden?')) return;
         await sb.auth.signOut({ scope: 'local' });   // nur dieses Gerät - eine Anmeldung in Dienstplan bleibt bestehen
         await kvLeeren();
+        // Nichts vom bisherigen Konto auf den Widgets zurücklassen
+        const WB = widgetPlugin();
+        clearTimeout(widgetSyncTimer);
+        if (WB) { try { await WB.leeren(); } catch (_e) { /* Widgets sind dann eben noch alt */ } }
         Object.keys(bvgCache).forEach(k => delete bvgCache[k]);
         // Nichts vom bisherigen Konto auf dem Gerät zurücklassen
         try {
@@ -363,6 +367,7 @@
             wechselSeite('einrichten');
         } else {
             tarifErinnerungPruefen();
+            widgetTagPruefen();
         }
     }
 
@@ -381,6 +386,7 @@
             offlineHinweisZeigen(null);
             renderCalendar();
             startseiteAktualisieren();   // sonst bleibt die Startseite nach dem Start bei den Platzhaltern
+            widgetSyncPlanen();
             ereignisTageLaden();
         } catch (e) {
             console.error('Laden fehlgeschlagen:', e);
@@ -391,6 +397,7 @@
                 offlineHinweisZeigen(zwischenspeicher.zeit);
                 renderCalendar();
                 startseiteAktualisieren();
+                widgetSyncPlanen();
                 return;
             }
             alert(istNetzwerkFehler(e)
@@ -729,15 +736,30 @@
         dateiSpeichernOderTeilen(`Dienstuebersicht_${listeDatum.getFullYear()}-${pad(listeDatum.getMonth() + 1)}.pdf`, doc.output('blob'));
     }
 
-    // Datei speichern: als Download (auf dem Handy landet sie im Download-Ordner)
-    function dateiSpeichernOderTeilen(dateiname, blob) {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', dateiname);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+    // Datei speichern: im Browser wie bisher per Download-Link. In der nativen App gibt es keinen Download-Ordner -
+    // dort wird die Datei ins App-eigene Cache-Verzeichnis geschrieben und direkt der native Teilen-Dialog
+    // geoeffnet (speichern/WhatsApp/Drucken uebernimmt der Nutzer dort).
+    async function dateiSpeichernOderTeilen(dateiname, blob) {
+        if (!capacitorAktiv()) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', dateiname);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        }
+        try {
+            const Filesystem = window.Capacitor.Plugins.Filesystem;
+            const Share = window.Capacitor.Plugins.Share;
+            const base64 = await blobZuBase64(blob);
+            const geschrieben = await Filesystem.writeFile({ path: dateiname, data: base64, directory: 'CACHE' });
+            await Share.share({ title: dateiname, url: geschrieben.uri });
+        } catch (e) {
+            if (e && e.message === 'Share canceled') return;   // Nutzer hat den Teilen-Dialog abgebrochen
+            console.log('Datei speichern/teilen fehlgeschlagen:', e);
+            alert('Datei konnte nicht erstellt werden.');
+        }
     }
 
     // ============================================================
@@ -2002,6 +2024,7 @@
     // "Ereignis hinzufügen": der Datei-Dialog des Handys bietet die Kamera direkt an
     function ereignisFotoButton() {
         if (!ereignisAktuellesDatum) return;
+        if (capacitorAktiv()) { ereignisFotoNativ(); return; }
         document.getElementById('ereignisBild').click();
     }
 
@@ -2839,6 +2862,229 @@
 
 
 
+    // ---------- Native App via Capacitor ----------
+    // Im normalen Browser/PWA gibt es kein window.Capacitor - dort bleiben diese Funktionen
+    // wirkungslose No-Ops bzw. der bisherige Web-Weg greift.
+    function capacitorAktiv() {
+        return typeof window !== 'undefined' && !!window.Capacitor &&
+            typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform();
+    }
+
+    function widgetPlugin() {
+        return capacitorAktiv() && window.Capacitor.Plugins ? window.Capacitor.Plugins.WidgetBridge : null;
+    }
+
+    function blobZuBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const ergebnis = reader.result || '';
+                const kommaIndex = ergebnis.indexOf(',');
+                resolve(kommaIndex >= 0 ? ergebnis.slice(kommaIndex + 1) : ergebnis);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    // Foto fuer ein Ereignis: Im Browser oeffnet der Datei-Dialog des Handys die Kamera/Galerie. In der
+    // nativen App zeigt Capacitors WebView bei einem einfachen <input type=file> nur den Galerie-Picker -
+    // dort fragt das Camera-Plugin per Auswahldialog, ob fotografiert oder aus der Galerie gewaehlt wird.
+    async function ereignisFotoNativ() {
+        try {
+            const foto = await window.Capacitor.Plugins.Camera.getPhoto({ resultType: 'uri', source: 'PROMPT', quality: 85 });
+            const antwort = await fetch(foto.webPath);
+            ereignisFotoAusgewaehlt(await antwort.blob());
+        } catch (e) {
+            if (e && /cancel/i.test(e.message || '')) return;   // Nutzer hat abgebrochen
+            console.log('Kamera-Aufnahme fehlgeschlagen:', e);
+            alert('Kamera konnte nicht geöffnet werden.');
+        }
+    }
+
+    // Uhrzeit "HH:MM" auf den Kalendertag von "heuteStr" gelegt, plus die Folgetag-Verschiebung aus
+    // p.sort (>= 24*60 bei Zeiten nach Mitternacht).
+    function aktuelleFahrtAlsDatum(heuteStr, sortMinuten) {
+        if (sortMinuten == null) return null;
+        const [jahr, monat, tag] = heuteStr.split('-').map(Number);
+        const d = new Date(jahr, monat - 1, tag, 0, 0, 0, 0);
+        d.setMinutes(sortMinuten);
+        return d;
+    }
+
+    // Baut die Fahrtpunkte-Liste (wie in der "Aktuelle Fahrt"-Ansicht) fuer einen einzelnen gespeicherten
+    // Tag auf, im fuers Widget passenden Format.
+    function widgetPunkteFuerTag(datumStr, sch) {
+        const punkte = aktuelleFahrtPunkteBauen(sch.details || null);
+        // Dienstnummer auf jeder Uebernahme (kann mehrfach am Tag vorkommen) und auf der ersten Wende zeigen -
+        // dort steht sie auch auf dem Fahrtbericht.
+        const dienstnummer = sch.details && sch.details.dienstnummer;
+        const ersteWendeIndex = punkte.findIndex(p => p.label === 'Wenden');
+        return punkte.map((p, i) => {
+            const zeitpunkt = aktuelleFahrtAlsDatum(datumStr, p.sort);
+            const folgeTeile = [];
+            if (p.folgeLinie) folgeTeile.push('Linie ' + p.folgeLinie);
+            if (p.folgeUmlauf) folgeTeile.push('Umlauf ' + p.folgeUmlauf);
+            let folge = folgeTeile.join(' · ');
+            if (p.folgeNach) folge += (folge ? ' → ' : '→ ') + p.folgeNach;
+            const zeigeDienstnummer = dienstnummer && (p.label === 'Übernahme' || i === ersteWendeIndex);
+            const label = aktuelleFahrtLabelText(p.label) + (zeigeDienstnummer ? ' · Dienst ' + dienstnummer : '');
+            return {
+                label,
+                ort: p.ort || '',
+                ankunft: p.ankunft || '',
+                abfahrt: p.abfahrt || '',
+                folge,
+                zeitMs: zeitpunkt ? zeitpunkt.getTime() : null
+            };
+        }).filter(p => p.zeitMs !== null);
+    }
+
+    // Die letzten 3 + heute (falls ein eigener Dienst ansteht) + die naechsten 3 gespeicherten Dienste fuers
+    // Widget, damit sich dort per Pfeile durchblaettern laesst.
+    function widgetTageBauen() {
+        const heuteStr = heutigesDatumStr();
+        const alleTage = Object.keys(gespeicherteSchichten)
+            .filter(k => !gespeicherteSchichten[k].typ)
+            .sort();
+        const vor = alleTage.filter(k => k < heuteStr).slice(-3);
+        const nach = alleTage.filter(k => k > heuteStr).slice(0, 3);
+        const heuteDabei = alleTage.includes(heuteStr);
+        const tage = [...vor, ...(heuteDabei ? [heuteStr] : []), ...nach];
+
+        return tage.map(datumStr => {
+            const sch = gespeicherteSchichten[datumStr];
+            const [, m, t] = datumStr.split('-');
+            return {
+                datumStr,
+                datumKurz: `${t}.${m}.`,
+                dienstnummer: (sch.details && sch.details.dienstnummer) || sch.dienstnummer || '',
+                punkte: widgetPunkteFuerTag(datumStr, sch)
+            };
+        });
+    }
+
+    // Alles, was das Kalender-Widget anzeigt, in kompakter Form: je gespeichertem Tag Dienstbeginn (s), Art
+    // (t: krank/urlaub/frei) und Mehrarbeit (m), dazu die Feiertage der naechsten/letzten 2 Jahre.
+    function widgetKalenderDatenBauen() {
+        const schichten = {};
+        Object.keys(gespeicherteSchichten).forEach(datumStr => {
+            const sch = gespeicherteSchichten[datumStr];
+            if (!sch) return;
+            const eintrag = {};
+            if (sch.typ && SONDERTAG_INFO[sch.typ]) {
+                eintrag.t = sch.typ;
+            } else {
+                eintrag.s = sch.startStr || '';
+                if (sch.istMehrarbeitTag) eintrag.m = true;
+            }
+            schichten[datumStr] = eintrag;
+        });
+
+        const feiertage = {};
+        const heute = new Date();
+        const pad = (n) => n < 10 ? '0' + n : String(n);
+        const ende = new Date(heute.getFullYear(), heute.getMonth() + 25, 0);
+        for (let d = new Date(heute.getFullYear(), heute.getMonth() - 24, 1); d <= ende; d.setDate(d.getDate() + 1)) {
+            const datumStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            const ft = feiertagAm(datumStr);
+            if (ft) feiertage[datumStr] = { a: ft.art === 'feiertag' ? 'f' : 's', k: feiertagKurz(ft.name) };
+        }
+        return { schichten, feiertage };
+    }
+
+    async function kalenderWidgetSync() {
+        const WB = widgetPlugin();
+        if (!WB || !WB.kalenderSpeichern) return;
+        try {
+            await WB.kalenderSpeichern({ kalenderJson: JSON.stringify(widgetKalenderDatenBauen()) });
+        } catch (e) { console.log('Kalender-Widget-Sync fehlgeschlagen:', e); }
+    }
+
+    // Speist beide Homescreen-Widgets mit den aktuellen Daten und plant Alarme, damit sich "Aktuelle Fahrt"
+    // exakt bei jedem Wende-/Pausenwechsel umschaltet - unabhaengig davon, ob die App offen ist.
+    async function aktuelleFahrtWidgetSyncHeute() {
+        const WB = widgetPlugin();
+        if (!WB || !aktuellerNutzer) return;
+        kalenderWidgetSync();
+        const heuteStr = heutigesDatumStr();
+        const tage = widgetTageBauen();
+        if (!tage.length) {
+            try { await WB.leeren(); } catch (e) { console.log('Widget leeren fehlgeschlagen:', e); }
+            kalenderWidgetSync();   // leeren() raeumt beide Widgets - der Kalender (Krank/Urlaub/Frei) soll bleiben
+            return;
+        }
+        const heuteIndex = tage.findIndex(t => t.datumStr === heuteStr);
+
+        try {
+            await WB.tageSpeichern({ tageJson: JSON.stringify(tage), heuteIndex });
+            if (heuteIndex !== -1) {
+                await WB.updatesPlanen({ zeitenMs: tage[heuteIndex].punkte.map(p => p.zeitMs) });
+            }
+        } catch (e) { console.log('Widget-Sync fehlgeschlagen:', e); }
+    }
+
+    // Wie oben, aber gebuendelt: beim PDF-Import werden viele Tage hintereinander gespeichert.
+    let widgetSyncTimer = null;
+    function widgetSyncPlanen() {
+        if (!widgetPlugin()) return;
+        clearTimeout(widgetSyncTimer);
+        widgetSyncTimer = setTimeout(aktuelleFahrtWidgetSyncHeute, 700);
+    }
+
+    // Tipp auf einen Tag im Kalender-Widget: Kalender auf diesen Monat stellen und den Tag genauso oeffnen wie
+    // beim Antippen im Kalender der App. Ist die App noch nicht angemeldet/eingerichtet, bleibt der Tag beim
+    // Plugin gemerkt und wird nach dem Anmelden abgeholt.
+    async function widgetTagPruefen() {
+        if (!capacitorAktiv() || !aktuellerNutzer || !ein.eingerichtetAm) return;
+        const WB = widgetPlugin();
+        if (!WB || !WB.offenesDatum) return;
+        let antwort;
+        try { antwort = await WB.offenesDatum(); } catch (e) { return; }
+        const datumStr = antwort && antwort.datum;
+        if (!datumStr || !/^\d{4}-\d{2}-\d{2}$/.test(datumStr)) return;
+        const [jahr, monat] = datumStr.split('-').map(Number);
+        aktuellesDatumAnzeige = new Date(jahr, monat - 1, 1);
+        wechselSeite('kalender');
+        kalenderTagKlick(datumStr);
+    }
+
+    // Bittet Android, ein Widget auf den Startbildschirm zu legen (Systemdialog zum Bestaetigen)
+    async function widgetAufStartbildschirm(art) {
+        const el = document.getElementById('widgetMeldung');
+        const WB = widgetPlugin();
+        if (!el || !WB) return;
+        try {
+            const { unterstuetzt } = await WB.widgetHinzufuegen({ art });
+            el.innerText = unterstuetzt
+                ? 'Android fragt dich jetzt, ob das Widget hinzugefügt werden soll.'
+                : 'Dein Startbildschirm kann das nicht automatisch. Halte eine freie Stelle gedrückt → Widgets → Planer.';
+        } catch (e) {
+            el.innerText = 'Das hat nicht geklappt. Halte eine freie Stelle auf dem Startbildschirm gedrückt → Widgets → Planer.';
+        }
+    }
+
+    // Zeigt in den Einstellungen, ob das Widget sich punktgenau bei jedem Wende-/Pausenwechsel aktualisieren
+    // darf, oder nur alle 30 Minuten (Android-Fallback ohne die Berechtigung "Alarme & Erinnerungen").
+    async function widgetGenauigkeitPruefen() {
+        const WB = widgetPlugin();
+        const el = document.getElementById('widgetGenauigkeitStatus');
+        if (!WB || !el) return;
+        try {
+            const { erlaubt } = await WB.alarmBerechtigungStatus();
+            el.innerHTML = erlaubt
+                ? `<span style="display:flex; align-items:flex-start; gap:6px;">${ICONS.check} Eingeschaltet – das Widget aktualisiert sich punktgenau bei jedem Wende-/Pausenwechsel.</span>`
+                : `<span style="display:flex; align-items:flex-start; gap:6px;">${ICONS.warning} Noch nicht eingeschaltet – das Widget aktualisiert sich nur alle 30 Minuten von selbst.</span>`;
+        } catch (e) { el.innerText = ''; }
+    }
+
+    function widgetGenauigkeitOeffnen() {
+        const WB = widgetPlugin();
+        if (WB) WB.alarmBerechtigungOeffnen();
+        // Nach der Rueckkehr aus den Android-Einstellungen den Status neu abfragen
+        setTimeout(widgetGenauigkeitPruefen, 1500);
+    }
+
     // ---------- App starten ----------
     // Verbindungsdaten des Supabase-Projekts (dürfen öffentlich sein –
     // der Zugriffsschutz passiert über die Regeln in der Datenbank).
@@ -2847,6 +3093,8 @@
 
 
     function starteApp() {
+        // Manche Einstellungen (z. B. Widgets) gibt es nur in der nativen App (Klasse "nur-nativ")
+        document.body.classList.toggle('ist-nativ', capacitorAktiv());
         // Kommt man über den Link aus der "Passwort vergessen"-Mail, zuerst das neue Passwort abfragen (nicht in die App springen)
         if (/type=recovery/.test(location.hash)) passwortWiederherstellung = true;
         // Eigener Speicherschlüssel: Planer und Dienstplan liegen auf derselben Domain (topbas79.github.io)
@@ -2855,6 +3103,11 @@
         sb.auth.onAuthStateChange((ereignis) => {
             if (ereignis === 'PASSWORD_RECOVERY') neuesPasswortZeigen();
         });
+        // Tipp auf einen Tag im Kalender-Widget, waehrend die App schon laeuft
+        try {
+            const WB = widgetPlugin();
+            if (WB && WB.addListener) WB.addListener('widgetTag', () => { widgetTagPruefen(); });
+        } catch (e) { console.log('Widget-Listener nicht verfügbar:', e); }
         // Wieder Netz: Daten neu laden und den Offline-Hinweis entfernen
         window.addEventListener('online', () => { if (aktuellerNutzer && !passwortWiederherstellung) schichtenLaden(); });
         nutzerLaden();
@@ -2893,12 +3146,13 @@
         if (seite === 'kalender') renderCalendar();
         if (seite === 'liste') listeRendern();
         if (seite === 'haltestellen') haltestellenRendern();
-        if (seite === 'einstellungen') { einstellungenLaden(); versteckeMeldung('einMeldung'); }
+        if (seite === 'einstellungen') { einstellungenLaden(); versteckeMeldung('einMeldung'); widgetGenauigkeitPruefen(); }
         if (seite === 'fehlermeldung') fehlermeldungSeiteOeffnen();
 
         if (seite === 'aktuellefahrt') {
             aktuelleFahrtRendern();
             aktuelleFahrtIntervallStarten();
+            widgetSyncPlanen();
         } else {
             aktuelleFahrtIntervallStoppen();
         }
@@ -4091,6 +4345,7 @@
 
         gespeicherteSchichten[datumStr] = ergebnis;
         if (!stillschweigend) renderCalendar();
+        widgetSyncPlanen();
     }
 
     async function speichereTagInKalender() {
@@ -4116,6 +4371,7 @@
             document.getElementById('ausgabe').style.display = 'none';
             document.getElementById('erfassenAktionenBtn').style.display = 'none';
             renderCalendar();
+            widgetSyncPlanen();
             alert(`🗑️ Schicht für ${datumStr} gelöscht.`);
         } catch (e) {
             alert('❌ Löschen fehlgeschlagen: ' + fehlerText(e));
@@ -4527,6 +4783,7 @@
             if (error) throw error;
             delete gespeicherteSchichten[datumStr];
             renderCalendar();
+            widgetSyncPlanen();
             krankFormularSchliessen();
         } catch (e) {
             alert('❌ Löschen fehlgeschlagen: ' + fehlerText(e));

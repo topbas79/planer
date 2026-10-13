@@ -596,6 +596,22 @@
         </div>
     </details>
 
+    <details class="einst-abschnitt nur-nativ">
+        <summary>Widgets</summary>
+        <div class="einst-inhalt">
+            <p class="auth-hinweis">Lege deinen Kalender oder die aktuelle Fahrt direkt auf den Startbildschirm.</p>
+            <button class="btn-save" style="margin-top:0;" onclick="widgetAufStartbildschirm('kalender')">Kalender-Widget hinzufügen</button>
+            <button class="btn-save" onclick="widgetAufStartbildschirm('fahrt')">Widget „Aktuelle Fahrt“ hinzufügen</button>
+            <div id="widgetMeldung" class="auth-hinweis" style="margin:8px 0 14px;"></div>
+            <p class="auth-hinweis">Hintergrund durchsichtig machen: Widget auf dem Startbildschirm gedrückt halten → „Einstellungen“ und den Regler verschieben.</p>
+
+            <p class="auth-hinweis" style="font-weight:700;">Punktgenaue Updates</p>
+            <p class="auth-hinweis">Android verlangt seit Version 12 eine eigene Erlaubnis für punktgenaue Erinnerungen. Ohne sie funktioniert das Widget „Aktuelle Fahrt“ trotzdem, aktualisiert sich dann aber nur alle 30 Minuten statt bei jedem Wende- oder Pausenwechsel.</p>
+            <div id="widgetGenauigkeitStatus" class="auth-hinweis" style="margin-bottom:10px;"></div>
+            <button class="btn-save" style="margin-top:0;" onclick="widgetGenauigkeitOeffnen()">Berechtigung öffnen</button>
+        </div>
+    </details>
+
     <div class="karte">
         <div class="form-group" style="margin-bottom:0;">
             <label for="einName">Name für die PDFs (optional)</label>
