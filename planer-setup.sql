@@ -122,3 +122,26 @@ $$;
 
 revoke all on function public.planer_haltestellen_kopieren() from public, anon;
 grant execute on function public.planer_haltestellen_kopieren() to authenticated;
+
+-- ---------- Planer-Konten in Dienstplan ausblenden ----------
+-- Planer und Dienstplan nutzen dasselbe Supabase-Projekt, also auch dieselbe Konten-Tabelle (auth.users / profile).
+-- Neue Konten bekommen in profile eine Zeile mit aktiv = false (Dienstplan prüft das, Planer nicht).
+-- Damit Planer-Konten in der Nutzerliste von Dienstplan nicht als "nicht freigeschaltet" auftauchen,
+-- merkt sich profile jetzt, aus welcher App ein Konto kommt. Planer meldet sich beim Registrieren mit app = 'planer' an.
+alter table public.profile add column if not exists app text not null default 'dienstplan';
+grant select (app) on public.profile to authenticated;
+
+create or replace function public.neues_profil_anlegen()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+begin
+  insert into public.profile (id, email, anzeigename, app)
+  values (new.id, new.email, split_part(new.email, '@', 1),
+          case when new.raw_user_meta_data ->> 'app' = 'planer' then 'planer' else 'dienstplan' end)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;

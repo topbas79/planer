@@ -219,7 +219,7 @@
                 const { data, error } = await sb.auth.signUp({
                     email,
                     password: passwort,
-                    options: { emailRedirectTo: APP_ADRESSE + '/' }
+                    options: { emailRedirectTo: APP_ADRESSE + '/', data: { app: 'planer' } }
                 });
                 if (error) throw error;
                 if (!data.session) {
@@ -3103,7 +3103,7 @@
         const schluessel = linien.join(',');
         const gemerkt = bvgCache[schluessel];
         if (gemerkt && Date.now() - gemerkt.zeit < BVG_CACHE_MS) return gemerkt.daten;
-        const { data, error } = await sb.functions.invoke('bvg-meldungen', { body: { linien } });
+        const { data, error } = await sb.functions.invoke('planer-bvg-meldungen', { body: { linien } });
         if (error) throw error;
         if (!data || data.fehler || !Array.isArray(data.linien)) throw new Error((data && data.fehler) || 'Keine Antwort');
         bvgCache[schluessel] = { zeit: Date.now(), daten: data };
