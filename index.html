@@ -414,6 +414,10 @@
     </div>
     <div id="dienstDetails" style="display:none;">
         <div class="karte-stark" id="dienstDetailsInhalt"></div>
+        <button class="btn-primaer alle-fahrten-btn" id="alleFahrtenBtn" style="display:none;" onclick="alleFahrtenOeffnen()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="12" rx="2.5"></rect><path d="M3.5 11h17"></path><path d="M7 19.5v1.5M17 19.5v1.5"></path></svg>
+            Alle Fahrten <span id="alleFahrtenAnzahl"></span>
+        </button>
         <div id="bvgHinweiseVerlauf" class="bvg-karte" style="display:none;"></div>
 
         <div class="ereignisse-kopf">
@@ -428,6 +432,23 @@
         <button class="btn-primaer teilen-btn" onclick="verlaufExternTeilen()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.6"></circle><circle cx="17.5" cy="6" r="2.6"></circle><circle cx="17.5" cy="18" r="2.6"></circle><path d="m8.3 10.7 6.9-3.4M8.3 13.3l6.9 3.4"></path></svg>Teilen (WhatsApp &amp; Co.)
         </button>
+    </div>
+</div>
+
+<!-- Alle Fahrten eines Dienstes als ganze Seite -->
+<div id="alleFahrtenSeite" class="vollseite" role="dialog" aria-modal="true" aria-labelledby="alleFahrtenTitel">
+    <div class="vollseite-innen">
+        <div class="seiten-kopf seiten-kopf-hoch">
+            <div class="vollseite-titel">
+                <h1 class="seiten-titel" id="alleFahrtenTitel">Alle Fahrten</h1>
+                <div class="seiten-unter" id="alleFahrtenUnter"></div>
+            </div>
+            <button class="kopf-btn" id="alleFahrtenZu" onclick="alleFahrtenSchliessen()" aria-label="Schließen">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+            </button>
+        </div>
+        <div class="fz-kurz" id="alleFahrtenKurz"></div>
+        <div id="alleFahrtenInhalt"></div>
     </div>
 </div>
 

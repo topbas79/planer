@@ -2880,6 +2880,7 @@
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
         seitenEl.classList.add('active');
+        alleFahrtenSchliessen();
 
         const tab = document.getElementById('tab-' + (TAB_ZUORDNUNG[seite] || seite));
         if (tab) tab.classList.add('active');
@@ -3358,6 +3359,8 @@
             box.style.display = 'none';
             inhalt.innerHTML = '';
             if (leerEl) leerEl.style.display = 'block';
+            const knopf = document.getElementById('alleFahrtenBtn');
+            if (knopf) knopf.style.display = 'none';
             return;
         }
         if (leerEl) leerEl.style.display = 'none';
@@ -3532,28 +3535,12 @@
                     `<span>${pt.ort || ''}${pt.unten ? (pt.ort ? '<br>' : '') + pt.unten : ''}</span></div></div>`;
         });
 
-        const alleFahrten = fahrtenMitAbgeleitetenWenden(d.fahrten, d.beginn, d.pausen);
-        if (alleFahrten.length) {
-            const reihen = alleFahrten.map(f => {
-                const standzeit = !f.linie;   // Wenden/Rüst/NB/ÜwegZ ohne Linie
-                const zielGleich = !f.nach_kuerzel || f.nach_kuerzel === f.von_kuerzel;
-                const zeitText = (f.bis_zeit && f.bis_zeit !== f.von_zeit)
-                    ? `${f.von_zeit || ''}–${f.bis_zeit}` : (f.von_zeit || '');
-                const linieText = [f.linie ? 'Linie ' + f.linie : '', (f.umlauf || f.umlauf === 0) ? 'Umlauf ' + f.umlauf : '']
-                    .filter(Boolean).join(' · ');
-                return `<div class="vf-zeile ${standzeit ? 'vf-stand' : ''}">
-                    <div class="vf-zeit">${zeitText}</div>
-                    <div class="vf-info">
-                        <span class="vf-ort">${ortText(f.von, f.von_kuerzel)}${zielGleich ? '' : ' → ' + ortText(f.nach, f.nach_kuerzel)}</span>
-                        ${f.typ && f.typ !== 'L' ? `<span class="vf-typ">${f.typ}</span>` : ''}
-                        ${linieText ? `<div class="vf-linie">${linieText}</div>` : ''}
-                    </div>
-                 </div>`;
-            }).join('');
-            html += `<details style="margin-top:14px;">
-                        <summary style="cursor:pointer; font-weight:600; font-size:.85rem; display:flex; align-items:center; gap:6px;">
-                            ${ICONS.bus} Alle Fahrten (${alleFahrten.length})
-                        </summary><div class="vf-liste">${reihen}</div></details>`;
+        // "Alle Fahrten" öffnet die ganze Seite (Knopf unter der Zeitleiste)
+        const anzahlFahrten = fahrtenMitAbgeleitetenWenden(d.fahrten, d.beginn, d.pausen).length;
+        const fahrtenKnopf = document.getElementById('alleFahrtenBtn');
+        if (fahrtenKnopf) {
+            fahrtenKnopf.style.display = anzahlFahrten ? '' : 'none';
+            document.getElementById('alleFahrtenAnzahl').innerText = anzahlFahrten ? `(${anzahlFahrten})` : '';
         }
 
         inhalt.innerHTML = anzeigeHtmlBereinigen(html);
@@ -3569,6 +3556,131 @@
         }
         ereignisseAnzeigen(dat);
     }
+
+    // ---------- "Alle Fahrten" als ganze Seite ----------
+    // Zeigt alle Fahrten des Dienstes der Reihe nach, Wenden und Pausen farbig hervorgehoben.
+    // Schließen: Knopf "X" oben rechts oder die Escape-Taste.
+    function zeitInMinutenOderNull(z) {
+        const t = /^(\d{1,2}):(\d{2})/.exec(String(z || ''));
+        return t ? Number(t[1]) * 60 + Number(t[2]) : null;
+    }
+
+    function dauerInMinuten(von, bis) {
+        const a = zeitInMinutenOderNull(von), b = zeitInMinutenOderNull(bis);
+        if (a === null || b === null) return null;
+        return (b - a + 1440) % 1440;
+    }
+
+    function alleFahrtenHtml(d) {
+        const beginnMin = zeitInMinutenOderNull(d.beginn) || 0;
+        const sortWert = (z) => {
+            const m = zeitInMinutenOderNull(z);
+            return m === null ? null : (m < beginnMin ? m + 1440 : m);   // nach Mitternacht = Folgetag
+        };
+
+        // Bezahlter und unbezahlter Teil derselben Unterbrechung = eine Pause
+        const pausen = [];
+        (d.pausen || []).forEach(p => {
+            const letzte = pausen[pausen.length - 1];
+            if (letzte && (letzte.ort_kuerzel || letzte.ort) === (p.ort_kuerzel || p.ort) && letzte.bis === p.von) {
+                letzte.bis = p.bis;
+                letzte.unbezahlt_minuten = (Number(letzte.unbezahlt_minuten) || 0) + (Number(p.unbezahlt_minuten) || 0);
+            } else {
+                pausen.push({ ...p, unbezahlt_minuten: Number(p.unbezahlt_minuten) || 0 });
+            }
+        });
+
+        const zeilen = [];
+        fahrtenMitAbgeleitetenWenden(d.fahrten, d.beginn, d.pausen).forEach(f =>
+            zeilen.push({ art: 'fahrt', sort: sortWert(f.von_zeit), f }));
+        pausen.forEach(p => zeilen.push({ art: 'pause', sort: sortWert(p.von), p }));
+        zeilen.sort((x, y) => (x.sort ?? 99999) - (y.sort ?? 99999));
+
+        let anzahlFahrten = 0, anzahlWenden = 0;
+        const html = zeilen.map(z => {
+            if (z.art === 'pause') {
+                const p = z.p;
+                const dauer = dauerInMinuten(p.von, p.bis);
+                const teile = [];
+                if (dauer !== null) teile.push(`${dauer} Min.`);
+                if (p.unbezahlt_minuten) teile.push(`${p.unbezahlt_minuten} Min. unbezahlt`);
+                return `<div class="fz-zeile fz-pause">
+                    <div class="fz-zeit"><b>${sicher(p.von || '')}</b><small>bis ${sicher(p.bis || '')}</small></div>
+                    <div class="fz-text">
+                        <div class="fz-titel"><span class="fz-marke">Pause</span></div>
+                        <div class="fz-unter">${sicher(aktuelleFahrtOrtName(p.ort, p.ort_kuerzel))}${teile.length ? ' · ' + sicher(teile.join(' · ')) : ''}</div>
+                    </div>
+                </div>`;
+            }
+
+            const f = z.f;
+            const typ = String(f.typ || '').trim();
+            const istWenden = !f.linie && /^wenden$/i.test(typ);
+            const dauer = dauerInMinuten(f.von_zeit, f.bis_zeit);
+            const von = aktuelleFahrtOrtName(f.von, f.von_kuerzel);
+            const nach = aktuelleFahrtOrtName(f.nach, f.nach_kuerzel);
+            const zeit = `<div class="fz-zeit"><b>${sicher(f.von_zeit || '')}</b><small>${f.bis_zeit && f.bis_zeit !== f.von_zeit ? 'bis ' + sicher(f.bis_zeit) : ''}</small></div>`;
+
+            if (istWenden) {
+                anzahlWenden++;
+                return `<div class="fz-zeile fz-wenden">${zeit}
+                    <div class="fz-text">
+                        <div class="fz-titel"><span class="fz-marke">Wenden</span></div>
+                        <div class="fz-unter">${sicher(von)}${dauer !== null ? ' · ' + dauer + ' Min.' : ''}</div>
+                    </div>
+                </div>`;
+            }
+            if (f.linie) {
+                anzahlFahrten++;
+                const umlauf = (f.umlauf || f.umlauf === 0) ? ' · Umlauf ' + sicher(f.umlauf) : '';
+                const typChip = typ && typ.toUpperCase() !== 'L' ? `<span class="fz-typ">${sicher(typ)}</span>` : '';
+                const ziel = String(f.nach || '').trim() || nach;
+                return `<div class="fz-zeile">${zeit}
+                    <div class="fz-text">
+                        <div class="fz-titel"><span class="fz-linie">${sicher(f.linie)}</span>${ziel ? ' → ' + sicher(ziel) : ''}${typChip}</div>
+                        <div class="fz-unter">${von ? 'ab ' + sicher(von) : ''}${umlauf}${dauer !== null ? ' · ' + dauer + ' Min.' : ''}</div>
+                    </div>
+                </div>`;
+            }
+            // übrige Standzeiten und Sonderfahrten ohne Linie (Rüst, NB, ÜWegZ, VB ...)
+            return `<div class="fz-zeile fz-leise">${zeit}
+                <div class="fz-text">
+                    <div class="fz-titel">${sicher(typ || 'Standzeit')}</div>
+                    <div class="fz-unter">${sicher(von)}${nach && nach !== von ? ' → ' + sicher(nach) : ''}${dauer !== null ? ' · ' + dauer + ' Min.' : ''}</div>
+                </div>
+            </div>`;
+        }).join('');
+
+        const kurz = [`${anzahlFahrten} Fahrten`, `${anzahlWenden} Wenden`, `${pausen.length} ${pausen.length === 1 ? 'Pause' : 'Pausen'}`];
+        return { html, kurz: kurz.join(' · ') };
+    }
+
+    function alleFahrtenOeffnen() {
+        const d = aktuelleDetails;
+        const seite = document.getElementById('alleFahrtenSeite');
+        if (!d || !seite) return;
+        const dat = document.getElementById('datum').value;
+        const nr = document.getElementById('dienstnummer').value.trim();
+        const wt = dat ? WOCHENTAGE_KURZ[new Date(dat + 'T12:00:00').getDay()] : '';
+        document.getElementById('alleFahrtenUnter').innerText =
+            (dat ? `${wt} ${dat.split('-').reverse().slice(0, 2).join('.')}.` : '') + (nr ? (dat ? ' · ' : '') + 'Dienst ' + nr : '');
+        const ergebnis = alleFahrtenHtml(d);
+        document.getElementById('alleFahrtenKurz').innerText = ergebnis.kurz;
+        document.getElementById('alleFahrtenInhalt').innerHTML = ergebnis.html || '<p class="seiten-hinweis">Keine Fahrten im Dienstzettel.</p>';
+        seite.classList.add('offen');
+        document.body.style.overflow = 'hidden';
+        seite.scrollTop = 0;
+        document.getElementById('alleFahrtenZu').focus();
+    }
+
+    function alleFahrtenSchliessen() {
+        const seite = document.getElementById('alleFahrtenSeite');
+        if (!seite || !seite.classList.contains('offen')) return;
+        seite.classList.remove('offen');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') alleFahrtenSchliessen(); });
 
     // Nimmt "15:37", "00:29+", "9:05" und macht daraus "15:37" / "00:29" / "09:05"
     function zeitBereinigen(wert) {

@@ -698,3 +698,38 @@ body.abgemeldet { padding-bottom: 24px; }
 @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Alle Fahrten als ganze Seite ---------- */
+.alle-fahrten-btn { margin: 0 0 14px 0; }
+.vollseite {
+    display: none; position: fixed; inset: 0; z-index: 300; overflow-y: auto; background: var(--bg); color: var(--text);
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(28px + env(safe-area-inset-bottom, 0px)) 16px;
+}
+.vollseite.offen { display: block; }
+.vollseite-innen { max-width: 520px; margin: 0 auto; }
+.vollseite-titel { flex: 1; min-width: 0; }
+.fz-kurz { font-size: .82rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin: 0 4px 12px 4px; color: var(--text-faint); }
+.fz-zeile {
+    display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: start;
+    background: var(--karte); color: var(--karte-text); border: var(--karte-rand); border-radius: 18px; padding: 10px 14px; margin-bottom: 8px;
+}
+.fz-zeit b { display: block; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.55rem; line-height: 1.05; }
+.fz-zeit small { display: block; font-size: .78rem; font-weight: 600; color: var(--karte-soft); }
+.fz-titel { font-weight: 700; font-size: 1.02rem; line-height: 1.35; }
+.fz-titel .fz-linie, .fz-titel .fz-typ { display: inline-block; vertical-align: 1px; margin-right: 6px; }
+.fz-unter { font-size: .86rem; color: var(--karte-soft); margin-top: 2px; line-height: 1.3; }
+.fz-linie { background: var(--schwarz); color: var(--gelb); border-radius: 8px; padding: 1px 9px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.15rem; }
+body.dark .fz-linie { background: var(--gelb); color: #0A0A0A; }
+.fz-typ { font-size: .7rem; font-weight: 700; border-radius: 6px; padding: 1px 6px; background: var(--feld-grau); color: var(--karte-text); }
+.fz-leise { opacity: .72; }
+.fz-wenden { background: var(--orange); border-color: var(--orange); color: #0A0A0A; }
+.fz-wenden .fz-zeit small, .fz-wenden .fz-unter { color: #3B2200; }
+body.dark .fz-wenden { background: rgba(255, 138, 61, .18); border: 1px solid var(--orange); color: #FFD9BF; }
+body.dark .fz-wenden .fz-zeit small, body.dark .fz-wenden .fz-unter { color: #FFBE94; }
+.fz-pause { background: var(--schwarz); border-color: var(--schwarz); color: #FFFFFF; }
+.fz-pause .fz-zeit b { color: var(--gelb); }
+.fz-pause .fz-zeit small, .fz-pause .fz-unter { color: #C9C9C9; }
+body.dark .fz-pause { background: rgba(255, 209, 0, .12); border: 1px solid var(--gelb); }
+.fz-marke { background: #0A0A0A; color: #FFFFFF; border-radius: 8px; padding: 1px 10px; font-weight: 800; font-size: .86rem; letter-spacing: .5px; text-transform: uppercase; }
+.fz-wenden .fz-marke { background: #0A0A0A; color: var(--orange); }
+.fz-pause .fz-marke { background: var(--gelb); color: #0A0A0A; }
