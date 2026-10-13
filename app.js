@@ -1875,8 +1875,11 @@
         const [, , tag] = k.split('-');
         const wochentag = WOCHENTAGE_KURZ[new Date(k + 'T12:00:00').getDay()].toUpperCase();
         const dienstText = sch.dienstnummer ? 'Dienst ' + sch.dienstnummer : '';
-        const linieText = d.beginn_linie ? 'Linie ' + d.beginn_linie : '';
+        const linieText = d.beginn_linie ? 'Linie ' + d.beginn_linie + (d.beginn_umlauf ? ' · Umlauf ' + d.beginn_umlauf : '') : '';
         const meta = [dienstText, linieText].filter(Boolean).join(' · ');
+        // Richtung der ersten Linie: zeigt, auf welcher Seite man steht, wenn man übernimmt
+        const richtung = d.beginn_linie ? dienstRichtung(d) : '';
+        const startOrt = d.beginn_ort ? aktuelleFahrtOrtName(d.beginn_ort, d.beginn_ort_kuerzel) : '';
         const chip = inZeitText(k, sch);
 
         inhalt.innerHTML = `
@@ -1889,6 +1892,8 @@
                     </div>
                     <div class="dienst-start-zeit">${sicher(sch.startStr || '')} – ${sicher(sch.endeStr || '')}</div>
                     ${meta ? `<div class="dienst-start-meta">${sicher(meta)}</div>` : ''}
+                    ${richtung ? `<div class="dienst-start-richtung">→ Richtung <b>${sicher(richtung)}</b></div>` : ''}
+                    ${startOrt ? `<div class="dienst-start-meta">Start: ${sicher(startOrt)}</div>` : ''}
                 </div>
             </div>`;
         bvgStartHinweisTerminieren();   // BVG-Meldungen zu den Linien dieses Dienstes
@@ -2075,6 +2080,31 @@
         return d;
     }
 
+    // Richtung = Endziel der Linienfahrt. So sieht man, auf welcher Seite man steht, wenn man das Fahrzeug übernimmt.
+    // Dienstzettel nennen beim Dienstbeginn/Einsetzen oft kein Ziel (dort steht nur die Fahrt zum Linienanfang):
+    // dann gilt das Ziel der ersten Linienfahrt dieser Linie (nachFahrt = erst danach suchen).
+    function richtungDerLinie(fahrten, linie, nachFahrt) {
+        const l = String(linie || '').trim();
+        const alle = fahrten || [];
+        const start = nachFahrt ? alle.indexOf(nachFahrt) + 1 : 0;
+        for (let i = start; i < alle.length; i++) {
+            const f = alle[i];
+            if (String(f.typ || '').toUpperCase() !== 'L' || !f.linie) continue;
+            if (l && String(f.linie).trim() !== l) continue;
+            const ziel = aktuelleFahrtOrtName(f.nach, f.nach_kuerzel);
+            if (ziel) return ziel;
+        }
+        return '';
+    }
+
+    // Richtung zum Dienstbeginn: erst ein vom Zettel genanntes Ziel, dann das der ersten Linienfahrt, zuletzt das Kürzel
+    function dienstRichtung(d) {
+        if (!d) return '';
+        const ausZettel = String(d.beginn_nach || '').trim();
+        if (ausZettel) return ausZettel;
+        return richtungDerLinie(d.fahrten, d.beginn_linie) || aktuelleFahrtOrtName('', d.beginn_nach_kuerzel);
+    }
+
     // Zeigt den vollen Haltestellennamen: Klartext, sonst aus der gelernten
     // Haltestellen-Liste, sonst als letzten Rückfall das rohe Kürzel.
     function aktuelleFahrtOrtName(name, kuerzel) {
@@ -2208,7 +2238,7 @@
                 ortKuerzel: d.beginn_ort_kuerzel || '',
                 sort: sortWert(d.beginn),
                 folgeLinie: d.beginn_linie || '', folgeUmlauf: d.beginn_umlauf || '',
-                folgeNach: aktuelleFahrtOrtName(d.beginn_nach, d.beginn_nach_kuerzel),
+                folgeNach: dienstRichtung(d),
                 label: 'Dienstbeginn'
             });
         }
@@ -2233,7 +2263,7 @@
                     ortKuerzel: f.von_kuerzel || '',
                     sort: sortWert(f.von_zeit),
                     folgeLinie: f.linie || '', folgeUmlauf: f.umlauf || '',
-                    folgeNach: aktuelleFahrtOrtName(f.nach, f.nach_kuerzel),
+                    folgeNach: String(f.nach || '').trim() || richtungDerLinie(fahrten, f.linie, f) || aktuelleFahrtOrtName(f.nach, f.nach_kuerzel),
                     label: 'Einsetzen'
                 });
             } else if (typ === 'a') {
@@ -3366,7 +3396,7 @@
                 zeit: d.beginn, sort: sortWert(d.beginn) - 1,   // immer ganz vorn
                 symbol: ICONS.play, titel: 'Dienstbeginn',
                 ort: ortText(d.beginn_ort, d.beginn_ort_kuerzel),
-                unten: fahrtInfo(d.beginn_linie, d.beginn_umlauf, d.beginn_nach, d.beginn_nach_kuerzel, d.beginn_abfahrt),
+                unten: fahrtInfo(d.beginn_linie, d.beginn_umlauf, dienstRichtung(d), '', d.beginn_abfahrt),
                 klasse: ''
             });
         }

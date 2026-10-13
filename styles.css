@@ -346,6 +346,8 @@ body.dark .dienst-tag { background: transparent; border: 2px solid var(--gelb); 
 .dienst-start-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .dienst-start-zeit { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1.9rem; line-height: 1.05; }
 .dienst-start-meta { font-size: .9rem; color: var(--karte-soft); }
+.dienst-start-richtung { font-size: .98rem; font-weight: 600; line-height: 1.25; }
+.dienst-start-richtung b { font-weight: 800; }
 .chip-in { background: var(--gelb); color: #0A0A0A; border-radius: 999px; padding: 2px 10px; font-size: .78rem; font-weight: 700; margin-left: auto; white-space: nowrap; }
 .dienst-start-kopf { display: flex; align-items: center; gap: 8px; }
 
