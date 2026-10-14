@@ -56,10 +56,26 @@ public class WidgetDaten {
     // letzte verfuegbare, falls heute keiner gespeichert ist).
     public static int aktuellerTagIndex(Context ctx, int appWidgetId, int tageGesamt) {
         if (tageGesamt == 0) return -1;
-        int heuteIndex = heuteIndexLaden(ctx);
-        int autoIndex = heuteIndex >= 0 ? heuteIndex : tageGesamt - 1;
         Integer manuell = manuellerTagIndexLaden(ctx, appWidgetId);
+        int autoIndex = tageGesamt - 1;
+        // Automatisch: der Tag mit dem heutigen Datum (wird bei jedem Zeichnen neu bestimmt, so springt das
+        // Widget nach Mitternacht von selbst um); gibt es keinen, der naechste kommende, sonst der letzte
+        JSONArray tage = tageLaden(ctx);
+        String heute = heuteDatumStr();
+        int kommend = -1;
+        for (int i = 0; i < tage.length(); i++) {
+            JSONObject t = tage.optJSONObject(i);
+            String datum = t != null ? t.optString("datumStr", "") : "";
+            if (heute.equals(datum)) { autoIndex = i; kommend = -2; break; }
+            if (kommend == -1 && datum.compareTo(heute) > 0) kommend = i;
+        }
+        if (kommend >= 0) autoIndex = kommend;
         return Math.max(0, Math.min(tageGesamt - 1, manuell != null ? manuell : autoIndex));
+    }
+
+    // Heutiges Datum als "yyyy-MM-dd", genau wie datumStr in den Tagesdaten
+    public static String heuteDatumStr() {
+        return new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
     }
 
     // Letzter Punkt, dessen Zeit schon erreicht ist - spiegelt exakt

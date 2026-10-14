@@ -1766,6 +1766,7 @@
     }
 
     let startDienstSchluessel = null;   // Datum des Dienstes, der auf der Startseite gezeigt wird
+    let startDienstManuell = null;      // per Pfeil gewählter Dienst (null = automatisch der nächste)
 
     function startseiteAktualisieren() {
         const jetzt = new Date();
@@ -1873,7 +1874,11 @@
     function startNaechsterRendern(heuteStr) {
         const box = document.getElementById('startNaechsterBox');
         const inhalt = document.getElementById('startNaechster');
-        const k = naechsterDienstSchluessel(heuteStr);
+        const auto = naechsterDienstSchluessel(heuteStr);
+        // Mit den Pfeilen gewählter Dienst, solange es ihn noch gibt - sonst der nächste Dienst
+        const manuellOk = !!startDienstManuell && !!gespeicherteSchichten[startDienstManuell] && !gespeicherteSchichten[startDienstManuell].typ;
+        if (!manuellOk) startDienstManuell = null;
+        const k = manuellOk ? startDienstManuell : auto;
         startDienstSchluessel = k;
 
         const heuteDienst = gespeicherteSchichten[heuteStr] && !gespeicherteSchichten[heuteStr].typ;
@@ -1903,13 +1908,21 @@
         const richtung = d.beginn_linie ? dienstRichtung(d) : '';
         const startOrt = d.beginn_ort ? aktuelleFahrtOrtName(d.beginn_ort, d.beginn_ort_kuerzel) : '';
         const chip = inZeitText(k, sch);
+        const alleDienste = alleDienstSchluessel();
+        const position = alleDienste.indexOf(k);
+        const [, monat] = k.split('-');
+        const ueberschrift = k === auto ? (k >= heuteStr ? 'Nächster Dienst' : 'Letzter Dienst')
+            : k === heuteStr ? 'Dienst heute'
+            : `${k > heuteStr ? 'Dienst' : 'Früherer Dienst'} · ${Number(tag)}.${Number(monat)}.`;
+        const pfeilLinks = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg>';
+        const pfeilRechts = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>';
 
         inhalt.innerHTML = `
             <div class="dienst-start klickbar" role="button" tabindex="0" onclick="dienstVerlaufOeffnen('${k}')" onkeydown="if(event.key==='Enter') dienstVerlaufOeffnen('${k}')">
                 <div class="dienst-tag"><small>${wochentag}</small><b>${sicher(String(Number(tag)))}</b></div>
                 <div class="dienst-start-text">
                     <div class="dienst-start-kopf">
-                        <span class="ueberschrift-klein">${k >= heuteStr ? 'Nächster Dienst' : 'Letzter Dienst'}</span>
+                        <span class="ueberschrift-klein">${sicher(ueberschrift)}</span>
                         ${chip ? `<span class="chip-in">${sicher(chip)}</span>` : ''}
                     </div>
                     <div class="dienst-start-zeit">${sicher(sch.startStr || '')} – ${sicher(sch.endeStr || '')}</div>
@@ -1917,8 +1930,33 @@
                     ${richtung ? `<div class="dienst-start-richtung">→ Richtung <b>${sicher(richtung)}</b></div>` : ''}
                     ${startOrt ? `<div class="dienst-start-meta">Start: ${sicher(startOrt)}</div>` : ''}
                 </div>
-            </div>`;
+            </div>
+            ${alleDienste.length > 1 ? `<div class="dienst-nav">
+                <button class="kopf-btn kopf-btn-klein" onclick="startDienstWeiter(-1)" aria-label="Früherer Dienst" ${position <= 0 ? 'disabled' : ''}>${pfeilLinks}</button>
+                ${k !== auto
+                    ? '<button class="dienst-nav-zurueck" onclick="startDienstWeiter(0)">Zum nächsten Dienst</button>'
+                    : `<span class="dienst-nav-pos">${position + 1} von ${alleDienste.length} Diensten</span>`}
+                <button class="kopf-btn kopf-btn-klein" onclick="startDienstWeiter(1)" aria-label="Späterer Dienst" ${position >= alleDienste.length - 1 ? 'disabled' : ''}>${pfeilRechts}</button>
+            </div>` : ''}`;
         bvgStartHinweisTerminieren();   // BVG-Meldungen zu den Linien dieses Dienstes
+    }
+
+    function alleDienstSchluessel() {
+        return Object.keys(gespeicherteSchichten).filter(k => !gespeicherteSchichten[k].typ).sort();
+    }
+
+    // Pfeile auf der Startseite: -1 früherer Dienst, 1 späterer Dienst, 0 zurück zum nächsten Dienst
+    function startDienstWeiter(richtung) {
+        const alle = alleDienstSchluessel();
+        if (!alle.length) return;
+        if (richtung === 0) {
+            startDienstManuell = null;
+        } else {
+            const i = alle.indexOf(startDienstSchluessel);
+            const ziel = Math.max(0, Math.min(alle.length - 1, (i < 0 ? alle.length - 1 : i) + richtung));
+            startDienstManuell = alle[ziel];
+        }
+        startNaechsterRendern(heutigesDatumStr());
     }
 
     // Öffnet den Dienstverlauf eines bestimmten Tages
@@ -2949,17 +2987,22 @@
             .sort();
         const vor = alleTage.filter(k => k < heuteStr).slice(-3);
         const nach = alleTage.filter(k => k > heuteStr).slice(0, 3);
-        const heuteDabei = alleTage.includes(heuteStr);
+        // Ist heute frei, Urlaub oder krank, zeigt das Widget das für heute an (statt eines anderen Dienstes)
+        const heuteEintrag = gespeicherteSchichten[heuteStr];
+        const heuteTyp = heuteEintrag && heuteEintrag.typ && SONDERTAG_INFO[heuteEintrag.typ] ? heuteEintrag.typ : '';
+        const heuteDabei = alleTage.includes(heuteStr) || !!heuteTyp;
         const tage = [...vor, ...(heuteDabei ? [heuteStr] : []), ...nach];
 
         return tage.map(datumStr => {
             const sch = gespeicherteSchichten[datumStr];
             const [, m, t] = datumStr.split('-');
+            const typ = sch.typ && SONDERTAG_INFO[sch.typ] ? sch.typ : '';
             return {
                 datumStr,
                 datumKurz: `${t}.${m}.`,
-                dienstnummer: (sch.details && sch.details.dienstnummer) || sch.dienstnummer || '',
-                punkte: widgetPunkteFuerTag(datumStr, sch)
+                typ,
+                dienstnummer: typ ? '' : ((sch.details && sch.details.dienstnummer) || sch.dienstnummer || ''),
+                punkte: typ ? [] : widgetPunkteFuerTag(datumStr, sch)
             };
         });
     }
@@ -3018,9 +3061,12 @@
 
         try {
             await WB.tageSpeichern({ tageJson: JSON.stringify(tage), heuteIndex });
-            if (heuteIndex !== -1) {
-                await WB.updatesPlanen({ zeitenMs: tage[heuteIndex].punkte.map(p => p.zeitMs) });
-            }
+            // Alarme: jeder Wende-/Pausenwechsel von heute, dazu kurz nach Mitternacht, damit das Widget auf den neuen Tag umspringt
+            const zeiten = heuteIndex !== -1 ? tage[heuteIndex].punkte.map(p => p.zeitMs) : [];
+            const mitternacht = new Date();
+            mitternacht.setHours(24, 0, 30, 0);
+            zeiten.push(mitternacht.getTime());
+            await WB.updatesPlanen({ zeitenMs: zeiten });
         } catch (e) { console.log('Widget-Sync fehlgeschlagen:', e); }
     }
 
@@ -3142,7 +3188,7 @@
 
         window.scrollTo(0, 0);
 
-        if (seite === 'start') startseiteAktualisieren();
+        if (seite === 'start') { startDienstManuell = null; startseiteAktualisieren(); }
         if (seite === 'kalender') renderCalendar();
         if (seite === 'liste') listeRendern();
         if (seite === 'haltestellen') haltestellenRendern();
@@ -4534,12 +4580,21 @@
             } else if (feiertag) {
                 beschreibung += ', ' + feiertag.name;
             }
+            // Zuschläge dieses Tages (bei Krank/Urlaub der Aufschlag) als kleine dritte Zeile
+            const zuschlagTag = sch ? (sch.typ ? (sch.aufschlagEuro || 0) : (sch.zuschlagSumme || 0)) : 0;
+            if (zuschlagTag >= 0.5) beschreibung += ', Zuschläge ' + euroText(zuschlagTag);
             zelle.setAttribute('aria-label', beschreibung);
             if (unterzeile) {
                 const u = document.createElement('div');
                 u.className = 'euro';
                 u.innerText = unterzeile;
                 zelle.appendChild(u);
+            }
+            if (zuschlagTag >= 0.5) {
+                const z = document.createElement('div');
+                z.className = 'euro zuschlag';
+                z.innerText = '+' + Math.round(zuschlagTag) + ' €';
+                zelle.appendChild(z);
             }
 
             if (ereignisTage.has(datum)) {
@@ -4556,6 +4611,71 @@
         }
 
         kalenderTagKarteRendern();
+        kalenderMonatKarteRendern();
+    }
+
+    // Stunden mit zwei Nachkommastellen wie auf der Abrechnung: "24,48 Std."
+    function stdAbrechnung(minuten) {
+        return (minuten / 60).toFixed(2).replace('.', ',') + ' Std.';
+    }
+
+    // Aufschlüsselung der Zuschläge eines Dienstes: [{ name, minuten, euro }], nur Positionen mit Wert.
+    // Was von zuschlagSumme übrig bleibt (volle Vergütung bei einem Mehrarbeit-Tag), steht als eigene Zeile.
+    function zuschlagPositionen(sch) {
+        const roh = [
+            ['Nacht', nachtMinutenVon(sch), sch.nachtEuro],
+            ['Samstag', sch.samstagMin, sch.samstagEuro],
+            ['Sonntag', sch.sonntagMin, sch.sonntagEuro],
+            ['Feiertag', sch.feiertagMin, sch.feiertagEuro],
+            ['Sondertag', sch.sonderMin, sch.sonderEuro],
+            ['Mehrarbeit', sch.mehrarbeitMinuten, sch.mehrarbeitEuro]
+        ];
+        const liste = roh.map(([name, minuten, euro]) => ({ name, minuten: minuten || 0, euro: euro || 0 }))
+            .filter(p => p.euro > 0.004);
+        const rest = (sch.zuschlagSumme || 0) - liste.reduce((a, p) => a + p.euro, 0);
+        if (rest > 0.005) liste.push({ name: 'Vergütung Mehrarbeit-Tag', minuten: sch.mehrarbeitMinuten || 0, euro: rest });
+        return liste;
+    }
+
+    // Übersicht unter dem Kalender: alle Zuschläge des angezeigten Monats, nach Art aufgeteilt.
+    // Sie werden zwei Monate später mit der Abrechnung ausgezahlt (Zuschläge vom August stehen auf der Oktober-Abrechnung).
+    function kalenderMonatKarteRendern() {
+        const el = document.getElementById('kalenderMonatKarte');
+        if (!el) return;
+        const jahr = aktuellesDatumAnzeige.getFullYear();
+        const monat = aktuellesDatumAnzeige.getMonth();
+        const praefix = `${jahr}-${String(monat + 1).padStart(2, '0')}`;
+        const summen = {};
+        const reihenfolge = ['Nacht', 'Samstag', 'Sonntag', 'Feiertag', 'Sondertag', 'Mehrarbeit', 'Vergütung Mehrarbeit-Tag'];
+        let gesamt = 0, aufschlag = 0, dienste = 0;
+        Object.keys(gespeicherteSchichten).forEach(k => {
+            if (!k.startsWith(praefix)) return;
+            const sch = gespeicherteSchichten[k];
+            if (sch.typ) { aufschlag += sch.aufschlagEuro || 0; return; }
+            dienste++;
+            gesamt += sch.zuschlagSumme || 0;
+            zuschlagPositionen(sch).forEach(p => {
+                const e = summen[p.name] || (summen[p.name] = { minuten: 0, euro: 0 });
+                e.minuten += p.minuten;
+                e.euro += p.euro;
+            });
+        });
+        if (!dienste && aufschlag < 0.005) { el.innerHTML = ''; return; }
+
+        const zeilen = reihenfolge.filter(n => summen[n]).map(n =>
+            `<div class="zuschlag-zeile"><span>${sicher(n)}</span><span>${n.startsWith('Vergütung') ? '' : stdAbrechnung(summen[n].minuten)}</span><span>${euroText(summen[n].euro)}</span></div>`);
+        if (aufschlag >= 0.005) {
+            zeilen.push(`<div class="zuschlag-zeile"><span>Krank-/Urlaubsaufschlag</span><span></span><span>${euroText(aufschlag)}</span></div>`);
+        }
+        const zahlMonat = MONATSNAMEN[(monat + 2) % 12];
+        el.innerHTML = `<div class="zuschlag-karte">
+            <div class="zuschlag-kopf">
+                <span class="ueberschrift-klein">Zuschläge im ${MONATSNAMEN[monat]}</span>
+                <b>${euroText(gesamt + aufschlag)}</b>
+            </div>
+            ${zeilen.join('')}
+            <p class="zuschlag-hinweis">Wird mit der Abrechnung im ${zahlMonat} ausgezahlt.</p>
+        </div>`;
     }
 
     // Karte zum angetippten Dienst: Zeit, bezahlte Stunden, Zuschläge, Bearbeiten, Google Kalender
@@ -4573,6 +4693,8 @@
             </div>
             <div class="tag-karte-zeit">${sicher(sch.startStr || '')} – ${sicher(sch.endeStr || '')}</div>
             <div class="tag-karte-meta">${sicher(stundenMinutenKurz(sch.nettoMinuten || 0))} bezahlt · Zuschläge ${euroText(sch.zuschlagSumme || 0)}</div>
+            ${zuschlagPositionen(sch).length ? `<div class="tag-karte-zuschlaege">${zuschlagPositionen(sch).map(p =>
+                `<span>${sicher(p.name)}${p.minuten && !p.name.startsWith('Vergütung') ? ' ' + stdAbrechnung(p.minuten) : ''} · ${euroText(p.euro)}</span>`).join('')}</div>` : ''}
             <div class="tag-karte-knoepfe">
                 <button onclick="klickKalenderTag('${k}')">Bearbeiten</button>
                 <button class="btn-umriss" onclick="kalenderTagGoogle('${k}')">In Google Kalender</button>

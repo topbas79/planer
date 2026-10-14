@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.RemoteViews;
 import de.topbas.planer.R;
@@ -79,10 +80,29 @@ public class AktuelleFahrtWidgetProvider extends AppWidgetProvider {
         views.setViewVisibility(R.id.tag_zurueck, tagIndex > 0 ? View.VISIBLE : View.INVISIBLE);
         views.setViewVisibility(R.id.tag_weiter, tagIndex < tageGesamt - 1 ? View.VISIBLE : View.INVISIBLE);
 
+        // Tag ohne Fahrten: frei / Urlaub / krank (heute extra beschriftet) oder ein Dienst ohne Fahrtdaten.
+        // Die Karte mit den Pfeilen zum Blaettern bleibt sichtbar, nur der Inhalt wird ersetzt.
         if (gesamt == 0) {
-            views.setViewVisibility(R.id.karte, View.GONE);
-            views.setViewVisibility(R.id.leer_text, View.VISIBLE);
-            views.setTextViewText(R.id.leer_text, "Keine Fahrtdaten für diesen Tag");
+            String typ = tag != null ? tag.optString("typ", "") : "";
+            boolean heute = tag != null && WidgetDaten.heuteDatumStr().equals(tag.optString("datumStr", ""));
+            String haupt;
+            if ("frei".equals(typ)) haupt = "Frei";
+            else if ("urlaub".equals(typ)) haupt = "Urlaub";
+            else if ("krank".equals(typ)) haupt = "Krank";
+            else haupt = "Keine Fahrtdaten für diesen Tag";
+            views.setViewVisibility(R.id.karte, View.VISIBLE);
+            views.setViewVisibility(R.id.leer_text, View.GONE);
+            views.setTextViewText(R.id.item_label, typ.isEmpty() ? "" : (heute ? "Heute" : "Kein Dienst"));
+            views.setTextViewText(R.id.item_ort, haupt);
+            if (!typ.isEmpty()) {
+                views.setTextViewTextSize(R.id.item_ort, TypedValue.COMPLEX_UNIT_SP, 28);
+                views.setTextColor(R.id.item_ort, 0xFFFFD100);
+            }
+            views.setViewVisibility(R.id.item_zeiten, View.GONE);
+            views.setTextViewText(R.id.item_folge, typ.isEmpty() ? "" : naechsterDienstText(tage, tagIndex));
+            views.setViewVisibility(R.id.nav_zurueck, View.INVISIBLE);
+            views.setViewVisibility(R.id.nav_weiter, View.INVISIBLE);
+            views.setTextViewText(R.id.nav_position, "");
             appWidgetManager.updateAppWidget(appWidgetId, views);
             return;
         }
@@ -129,6 +149,17 @@ public class AktuelleFahrtWidgetProvider extends AppWidgetProvider {
         views.setViewVisibility(R.id.nav_weiter, index < gesamt - 1 ? View.VISIBLE : View.INVISIBLE);
 
         appWidgetManager.updateAppWidget(appWidgetId, views);
+    }
+
+    // "Nächster Dienst: 16.10. · B 189" - der erste folgende Tag mit Fahrten
+    private static String naechsterDienstText(JSONArray tage, int tagIndex) {
+        for (int i = tagIndex + 1; i < tage.length(); i++) {
+            JSONObject t = tage.optJSONObject(i);
+            if (t == null || !t.optString("typ", "").isEmpty()) continue;
+            String nummer = t.optString("dienstnummer", "");
+            return "Nächster Dienst: " + t.optString("datumKurz", "") + (nummer.isEmpty() ? "" : " · " + nummer);
+        }
+        return "";
     }
 
     private static PendingIntent navPendingIntent(Context context, int appWidgetId, int richtung) {

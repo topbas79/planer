@@ -487,6 +487,20 @@ body.dark .l-dienst { background: var(--gelb); border-color: transparent; }
 body.dark .tag-karte-dienst { background: var(--gelb); color: #0A0A0A; }
 .tag-karte-zeit { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 2.5rem; line-height: 1.1; margin: 6px 0 2px 0; }
 .tag-karte-meta { font-size: .9rem; color: var(--karte-soft); }
+.tag-karte-zuschlaege { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; font-size: .88rem; color: var(--karte-soft); }
+.zuschlag-karte { background: var(--karte); color: var(--karte-text); border: var(--karte-rand); border-radius: 24px; padding: 16px; margin: 12px 0 4px 0; }
+.zuschlag-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.zuschlag-kopf .ueberschrift-klein { color: var(--karte-soft); }
+.zuschlag-kopf b { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 2rem; line-height: 1; }
+.zuschlag-zeile { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 6px 0; border-top: 1px solid var(--karte-linie); font-size: .95rem; }
+.zuschlag-zeile span:nth-child(2) { color: var(--karte-soft); text-align: right; }
+.zuschlag-zeile span:last-child { font-weight: 700; text-align: right; min-width: 76px; }
+.zuschlag-hinweis { font-size: .82rem; color: var(--karte-soft); margin: 10px 0 0 0; }
+.cal-day .euro.zuschlag { font-size: .58rem; opacity: .9; }
+.dienst-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.dienst-nav-pos { font-size: .82rem; font-weight: 600; color: var(--karte-soft); text-align: center; }
+.start-dienst .dienst-nav-zurueck { width: auto; min-height: 36px; margin: 0; padding: 6px 14px; border-radius: 999px; background: var(--gelb); color: #0A0A0A; font-size: .85rem; }
+.dienst-nav .kopf-btn:disabled { opacity: .35; }
 .tag-karte-knoepfe { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 .tag-karte-knoepfe button { margin: 0; min-height: 48px; font-size: .95rem; }
 
