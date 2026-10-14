@@ -6,6 +6,7 @@ Abgeleitet von der App [Dienstplan](https://github.com/topbas79/dienstplan), abe
 - **Adresse:** https://topbas79.github.io/planer
 - **Technik:** reines HTML/CSS/JS ohne Build-Schritt, Daten in Supabase (eigene Tabellen mit Präfix `planer_`)
 - **Bauplan und Entwürfe:** [PLANER.md](PLANER.md), Ordner `planer-entwurf/`
+- **Android-App:** Download unter https://topbas79.github.io/planer/app/ (Widgets „Kalender“ und „Aktuelle Fahrt“). Bauen: `npm install`, `npm run cap:sync`, dann im Ordner `android` `gradlew assembleRelease`; die Signierdaten liegen in `android/keystore.properties` (nicht im Repo).
 - **Datenbank einrichten:** `planer-setup.sql` im Supabase-SQL-Editor ausführen (nur additiv)
 
 ## Lokal ansehen

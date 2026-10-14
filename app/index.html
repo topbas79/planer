@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planer – App herunterladen</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#FFD100">
+<link rel="icon" href="../icon-192.png">
+<style>
+    :root {
+        --gelb: #FFD100;
+        --schwarz: #0A0A0A;
+        --bg: #FFD100;
+        --text: #0A0A0A;
+        --karte: #FFFFFF;
+        --karte-text: #0A0A0A;
+        --karte-soft: #3B3A35;
+        --karte-linie: rgba(10, 10, 10, .14);
+        --knopf: #0A0A0A;
+        --knopf-text: #FFD100;
+        --nr-bg: #0A0A0A;
+        --nr-text: #FFD100;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #0B0B0C;
+            --text: #F5F5F5;
+            --karte: #18181B;
+            --karte-text: #F5F5F5;
+            --karte-soft: #B8B8BD;
+            --karte-linie: #2A2A2E;
+            --knopf: #FFD100;
+            --knopf-text: #0A0A0A;
+            --nr-bg: #FFD100;
+            --nr-text: #0A0A0A;
+        }
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 40px 16px;
+    }
+    .seite { width: 100%; max-width: 380px; text-align: center; }
+    .icon { width: 84px; height: 84px; margin: 0 auto 16px; border-radius: 22px; overflow: hidden; background: var(--gelb); }
+    .icon img { width: 100%; height: 100%; display: block; }
+    h1 { font-size: 34px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.5px; }
+    .untertitel { font-size: 15px; margin: 0 0 24px; opacity: .85; }
+    .box {
+        background: var(--karte);
+        color: var(--karte-text);
+        border: 3px solid var(--schwarz);
+        border-radius: 22px;
+        padding: 18px;
+        margin-bottom: 14px;
+        text-align: left;
+    }
+    @media (prefers-color-scheme: dark) { .box { border: 1px solid #2A2A2E; } }
+    .version-zeile {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 14px; font-size: 13px; color: var(--karte-soft);
+    }
+    .version-zeile b { color: var(--karte-text); font-weight: 800; }
+    a.laden-knopf {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: 100%; background: var(--knopf); color: var(--knopf-text);
+        text-decoration: none; border-radius: 16px; padding: 16px;
+        font-size: 16px; font-weight: 800;
+    }
+    a.laden-knopf:active { transform: scale(.985); }
+    .lade-hinweis { font-size: 12.5px; color: var(--karte-soft); margin: 10px 0 0; text-align: center; }
+    .schritt-titel {
+        font-size: 11.5px; font-weight: 800; color: var(--karte-soft);
+        text-transform: uppercase; letter-spacing: .08em; margin: 0 0 12px;
+    }
+    .schritt { display: flex; gap: 10px; margin-bottom: 12px; }
+    .schritt:last-child { margin-bottom: 0; }
+    .schritt-nr {
+        width: 22px; height: 22px; flex: none; border-radius: 50%;
+        background: var(--nr-bg); color: var(--nr-text);
+        font-size: 12px; font-weight: 800;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .schritt p { font-size: 14px; line-height: 1.5; margin: 0; }
+    .fussnote { font-size: 12.5px; margin: 18px 0 0; line-height: 1.5; opacity: .8; }
+    .fussnote a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="seite">
+    <div class="icon"><img src="../icon-192.png" alt=""></div>
+    <h1>Planer</h1>
+    <p class="untertitel">Dienste und Verdienst im Blick – für BVG-Kollegen</p>
+
+    <div class="box">
+        <div class="version-zeile">
+            <span>Aktuelle Version</span>
+            <b id="version">wird geladen …</b>
+        </div>
+        <a class="laden-knopf" id="ladenKnopf" href="https://github.com/topbas79/planer/releases/latest/download/Planer.apk">
+            ⬇ App herunterladen
+        </a>
+        <p class="lade-hinweis" id="ladeHinweis"></p>
+    </div>
+
+    <div class="box">
+        <p class="schritt-titel">So installierst du sie</p>
+        <div class="schritt">
+            <div class="schritt-nr">1</div>
+            <p>Datei öffnen und Installation aus unbekannten Quellen erlauben.</p>
+        </div>
+        <div class="schritt">
+            <div class="schritt-nr">2</div>
+            <p>Warnung von Play Protect mit „Trotzdem installieren“ bestätigen.</p>
+        </div>
+        <div class="schritt">
+            <div class="schritt-nr">3</div>
+            <p>App öffnen, mit E-Mail und Passwort registrieren und den Verdienst einrichten.</p>
+        </div>
+    </div>
+
+    <p class="fussnote">Planer gibt es auch im Browser: <a href="../">topbas79.github.io/planer</a>. Die Android-App bringt zusätzlich Widgets für den Startbildschirm mit.</p>
+</div>
+<script>
+    // Zeigt die zuletzt veröffentlichte Version an. Der Download-Knopf zeigt fest auf
+    // ".../releases/latest/download/Planer.apk" - diese Adresse bleibt bei jeder
+    // neuen Version automatisch gleich, hier muss nichts von Hand aktualisiert werden.
+    fetch('https://api.github.com/repos/topbas79/planer/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (release) {
+            var assets = release.assets || [];
+            var apk = assets.filter(function (a) { return a.name === 'Planer.apk'; })[0];
+            document.getElementById('version').textContent = release.tag_name || release.name || '–';
+            if (apk) {
+                var mb = (apk.size / 1024 / 1024).toFixed(1);
+                document.getElementById('ladeHinweis').textContent = mb + ' MB · für Android';
+            }
+        })
+        .catch(function () {
+            document.getElementById('version').textContent = '–';
+            document.getElementById('ladeHinweis').textContent = 'Noch keine Version veröffentlicht.';
+            document.getElementById('ladenKnopf').style.opacity = '.5';
+            document.getElementById('ladenKnopf').style.pointerEvents = 'none';
+        });
+</script>
+</body>
+</html>

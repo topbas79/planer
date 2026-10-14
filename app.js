@@ -4187,6 +4187,20 @@
 
         const istUnbezahlt = (z) => unbezahlteFenster.some(f => z >= f.von && z < f.bis);
 
+        // Tagesart je Kalendertag: Am Starttag gilt die gewählte Feiertagsregelung. Reicht der Dienst über
+        // Mitternacht, gilt für die Zeit danach der Folgetag - ist der kein Feiertag, gibt es dafür auch keinen
+        // Feiertagszuschlag (Samstag/Sonntag richten sich schon minutengenau nach dem Wochentag).
+        const tagesArtCache = {};
+        const tagesArt = (d) => {
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (key === datumStr) return feiertagsArt;
+            if (!(key in tagesArtCache)) {
+                const treffer = feiertagAm(key);
+                tagesArtCache[key] = treffer ? treffer.art : 'normal';
+            }
+            return tagesArtCache[key];
+        };
+
         // --- Minutenweise durchgehen ---
         let gearbeitet = 0, nachtMin = 0, samstagMin = 0, sonntagMin = 0, feiertagMin = 0, sonderMin = 0;
         let mehrMin = 0;
@@ -4204,8 +4218,9 @@
 
             if (stunde >= ein.nachtVon || stunde < ein.nachtBis) nachtMin++;
 
-            if (feiertagsArt === 'feiertag') feiertagMin++;
-            else if (feiertagsArt === 'sonderstichtag') sonderMin++;
+            const tagArt = tagesArt(curr);
+            if (tagArt === 'feiertag') feiertagMin++;
+            else if (tagArt === 'sonderstichtag') sonderMin++;
             else if (wochentag === 6 && stunde >= ein.samstagAb) samstagMin++;
             else if (wochentag === 0) sonntagMin++;
 
