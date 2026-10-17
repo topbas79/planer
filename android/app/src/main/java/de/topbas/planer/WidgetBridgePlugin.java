@@ -167,6 +167,20 @@ public class WidgetBridgePlugin extends Plugin {
         call.resolve();
     }
 
+    // Versionsname der installierten App (z. B. "1.0.2") - fuer den Update-Hinweis auf der Startseite
+    @PluginMethod
+    public void appVersion(PluginCall call) {
+        JSObject ergebnis = new JSObject();
+        String name = "";
+        try {
+            Context ctx = getContext().getApplicationContext();
+            String v = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
+            if (v != null) name = v;
+        } catch (Exception e) { /* Version unbekannt: kein Hinweis */ }
+        ergebnis.put("version", name);
+        call.resolve(ergebnis);
+    }
+
     // Meldet, ob punktgenaue Widget-Updates gerade moeglich sind (fuer eine kleine Statusanzeige
     // in den Einstellungen). Vor Android 12 gibt es diese Einschraenkung gar nicht - dort immer true.
     @PluginMethod

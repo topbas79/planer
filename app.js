@@ -361,6 +361,7 @@
         await haltestellenLaden();
         await haltestellenErsteListe();
         await schichtenLaden();
+        updatePruefen();
 
         // Beim ersten Mal nur "Verdienst einrichten", danach die App
         if (!ein.eingerichtetAm) {
@@ -3131,6 +3132,78 @@
         setTimeout(widgetGenauigkeitPruefen, 1500);
     }
 
+    // ---------- Update-Hinweis (nur Android-App) ----------
+    // Beim Start (und beim Zurückkehren in die App) wird höchstens alle 6 Stunden bei GitHub nachgesehen, ob es
+    // eine neuere Version gibt. Dann erscheint oben auf der Startseite ein Hinweis mit Link zur Download-Seite.
+    // Die Web-Version aktualisiert sich selbst und braucht das nicht.
+    const UPDATE_API = 'https://api.github.com/repos/topbas79/planer/releases/latest';
+    const UPDATE_SEITE = 'https://topbas79.github.io/planer/app/';
+    const UPDATE_ABSTAND_MS = 6 * 3600 * 1000;
+
+    // Ist Version a neuer als Version b? ("1.0.10" > "1.0.9")
+    function versionNeuer(a, b) {
+        const teile = (v) => String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+        const x = teile(a), y = teile(b);
+        for (let i = 0; i < Math.max(x.length, y.length); i++) {
+            const d = (x[i] || 0) - (y[i] || 0);
+            if (d) return d > 0;
+        }
+        return false;
+    }
+
+    function speicherLesen(schluessel) {
+        try { return localStorage.getItem(schluessel) || ''; } catch (_e) { return ''; }
+    }
+    function speicherSchreiben(schluessel, wert) {
+        try { localStorage.setItem(schluessel, wert); } catch (_e) { /* ohne Speicher: nächstes Mal wieder */ }
+    }
+
+    async function updatePruefen() {
+        const WB = widgetPlugin();
+        if (!WB || !WB.appVersion) return;
+        let installiert = '';
+        try { installiert = String((await WB.appVersion()).version || ''); } catch (_e) { return; }
+        if (!installiert) return;
+        const zeile = document.getElementById('appVersionZeile');
+        if (zeile) zeile.innerText = 'Planer ' + installiert;
+
+        let neueste = speicherLesen('planer_update_neueste');
+        const geprueft = Number(speicherLesen('planer_update_geprueft')) || 0;
+        if (Date.now() - geprueft > UPDATE_ABSTAND_MS) {
+            try {
+                const antwort = await fetch(UPDATE_API, { headers: { Accept: 'application/vnd.github+json' } });
+                if (antwort.ok) {
+                    const release = await antwort.json();
+                    neueste = String(release.tag_name || '').replace(/^v/, '');
+                    speicherSchreiben('planer_update_neueste', neueste);
+                }
+                speicherSchreiben('planer_update_geprueft', String(Date.now()));
+            } catch (_e) { /* ohne Netz: der zuletzt gemerkte Stand gilt */ }
+        }
+        updateHinweisZeigen(installiert, neueste);
+    }
+
+    function updateHinweisZeigen(installiert, neueste) {
+        const box = document.getElementById('updateHinweis');
+        if (!box) return;
+        // Weggetippt: für diese Version 24 Stunden nicht mehr zeigen
+        const [zuVersion, zuZeit] = speicherLesen('planer_update_zu').split('|');
+        const weggetippt = zuVersion === neueste && Date.now() - (Number(zuZeit) || 0) < 24 * 3600 * 1000;
+        if (!neueste || !versionNeuer(neueste, installiert) || weggetippt) { box.style.display = 'none'; return; }
+        document.getElementById('updateHinweisText').innerText = `Neue Version ${neueste} verfügbar (du hast ${installiert})`;
+        const link = document.getElementById('updateHinweisLink');
+        link.href = UPDATE_SEITE;
+        box.dataset.version = neueste;
+        box.style.display = 'flex';
+    }
+
+    function updateHinweisSchliessen() {
+        const box = document.getElementById('updateHinweis');
+        if (!box) return;
+        speicherSchreiben('planer_update_zu', (box.dataset.version || '') + '|' + Date.now());
+        box.style.display = 'none';
+    }
+
     // ---------- App starten ----------
     // Verbindungsdaten des Supabase-Projekts (dürfen öffentlich sein –
     // der Zugriffsschutz passiert über die Regeln in der Datenbank).
@@ -3154,6 +3227,8 @@
             const WB = widgetPlugin();
             if (WB && WB.addListener) WB.addListener('widgetTag', () => { widgetTagPruefen(); });
         } catch (e) { console.log('Widget-Listener nicht verfügbar:', e); }
+        // Zurück in der App (z. B. nach dem Herunterladen): nach einer neuen Version sehen
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && aktuellerNutzer) updatePruefen(); });
         // Wieder Netz: Daten neu laden und den Offline-Hinweis entfernen
         window.addEventListener('online', () => { if (aktuellerNutzer && !passwortWiederherstellung) schichtenLaden(); });
         nutzerLaden();

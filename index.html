@@ -16,7 +16,7 @@
     <meta name="apple-mobile-web-app-title" content="Planer">
 
     <!-- Sicherheitsregel des Browsers: nur eigene Dateien und die Datenbank (Supabase). Daten dürfen nur dorthin gesendet werden. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co https://api.github.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
 
     <!-- Bibliotheken liegen lokal in vendor/libs (feste Versionen, laufen auch ohne Netz):
          jsPDF 2.5.1 + AutoTable 3.8.2 (PDF-Export), supabase-js 2.116.0 (Anmeldung/Datenbank). -->
@@ -72,6 +72,12 @@
         <button class="kopf-btn" onclick="oeffneMehrPanel()" aria-label="Mehr">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path></svg>
         </button>
+    </div>
+
+    <div id="updateHinweis" class="update-hinweis" style="display:none;">
+        <span id="updateHinweisText"></span>
+        <a class="update-knopf" id="updateHinweisLink" href="https://topbas79.github.io/planer/app/" target="_blank" rel="noopener">Herunterladen</a>
+        <button class="update-zu" onclick="updateHinweisSchliessen()" aria-label="Später erinnern">&times;</button>
     </div>
 
     <div class="start-verdienst">
@@ -637,6 +643,7 @@
 
     <div class="meldung" id="einMeldung"></div>
     <button class="btn-primaer btn-gross" onclick="einstellungenSpeichern()">SPEICHERN</button>
+    <p class="auth-hinweis nur-nativ" id="appVersionZeile" style="text-align:center;"></p>
 </div>
 
 <!-- SEITE: Haltestellen (eigene Liste) -->
