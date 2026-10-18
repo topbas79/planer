@@ -3196,12 +3196,14 @@
         el.innerText = 'Suche nach Updates …';
         const r = await updatePruefen(true);
         if (!r) { el.innerText = 'Das geht nur in der Android-App.'; return; }
-        if (r.fehler && !r.neueste) {
-            el.innerText = 'Keine Verbindung zu GitHub. Bitte später noch einmal versuchen.';
-        } else if (r.neuer) {
+        if (r.neuer) {
             el.innerHTML = `Version ${sicher(r.neueste)} ist verfügbar (du hast ${sicher(r.installiert)}). <a href="${UPDATE_SEITE}" target="_blank" rel="noopener">Jetzt herunterladen</a>`;
+        } else if (r.fehler) {
+            // Nicht behaupten, man sei aktuell, wenn gar nicht nachgesehen werden konnte
+            el.innerText = 'Gerade ging die Abfrage bei GitHub nicht (kein Netz?). Bitte später noch einmal versuchen.'
+                + (r.neueste ? ` Zuletzt bekannt: Version ${r.neueste}.` : '');
         } else {
-            el.innerText = `Du hast die neueste Version (${r.installiert}).`;
+            el.innerText = `Du hast die neueste Version (${r.installiert}). Gefunden bei GitHub: ${r.neueste}.`;
         }
     }
 
