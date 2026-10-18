@@ -361,7 +361,7 @@
         await haltestellenLaden();
         await haltestellenErsteListe();
         await schichtenLaden();
-        updatePruefen();
+        updatePruefen(true);
 
         // Beim ersten Mal nur "Verdienst einrichten", danach die App
         if (!ein.eingerichtetAm) {
@@ -3138,7 +3138,7 @@
     // Die Web-Version aktualisiert sich selbst und braucht das nicht.
     const UPDATE_API = 'https://api.github.com/repos/topbas79/planer/releases/latest';
     const UPDATE_SEITE = 'https://topbas79.github.io/planer/app/';
-    const UPDATE_ABSTAND_MS = 6 * 3600 * 1000;
+    const UPDATE_ABSTAND_MS = 3600 * 1000;   // beim Zurückkehren in die App höchstens stündlich; beim App-Start immer
 
     // Ist Version a neuer als Version b? ("1.0.10" > "1.0.9")
     function versionNeuer(a, b) {
@@ -3158,37 +3158,59 @@
         try { localStorage.setItem(schluessel, wert); } catch (_e) { /* ohne Speicher: nächstes Mal wieder */ }
     }
 
-    async function updatePruefen() {
+    // erzwingen = true: sofort bei GitHub nachsehen (App-Start, Knopf in den Einstellungen).
+    // Liefert { installiert, neueste, neuer, fehler } oder null, wenn es keine Android-App ist.
+    async function updatePruefen(erzwingen) {
         const WB = widgetPlugin();
-        if (!WB || !WB.appVersion) return;
+        if (!WB || !WB.appVersion) return null;
         let installiert = '';
-        try { installiert = String((await WB.appVersion()).version || ''); } catch (_e) { return; }
-        if (!installiert) return;
+        try { installiert = String((await WB.appVersion()).version || ''); } catch (_e) { return null; }
+        if (!installiert) return null;
         const zeile = document.getElementById('appVersionZeile');
         if (zeile) zeile.innerText = 'Planer ' + installiert;
 
         let neueste = speicherLesen('planer_update_neueste');
         const geprueft = Number(speicherLesen('planer_update_geprueft')) || 0;
-        if (Date.now() - geprueft > UPDATE_ABSTAND_MS) {
+        let fehler = false;
+        if (erzwingen || Date.now() - geprueft > UPDATE_ABSTAND_MS) {
             try {
                 const antwort = await fetch(UPDATE_API, { headers: { Accept: 'application/vnd.github+json' } });
                 if (antwort.ok) {
                     const release = await antwort.json();
                     neueste = String(release.tag_name || '').replace(/^v/, '');
                     speicherSchreiben('planer_update_neueste', neueste);
+                    speicherSchreiben('planer_update_geprueft', String(Date.now()));
+                } else {
+                    fehler = true;   // z. B. zu viele Anfragen: der zuletzt gemerkte Stand gilt, nächstes Mal wieder versuchen
                 }
-                speicherSchreiben('planer_update_geprueft', String(Date.now()));
-            } catch (_e) { /* ohne Netz: der zuletzt gemerkte Stand gilt */ }
+            } catch (_e) { fehler = true; /* ohne Netz: der zuletzt gemerkte Stand gilt */ }
         }
-        updateHinweisZeigen(installiert, neueste);
+        updateHinweisZeigen(installiert, neueste, !!erzwingen);
+        return { installiert, neueste, neuer: !!neueste && versionNeuer(neueste, installiert), fehler };
     }
 
-    function updateHinweisZeigen(installiert, neueste) {
+    // Knopf in den Einstellungen: "Nach Updates suchen"
+    async function updateManuellPruefen() {
+        const el = document.getElementById('updateMeldung');
+        if (!el) return;
+        el.innerText = 'Suche nach Updates …';
+        const r = await updatePruefen(true);
+        if (!r) { el.innerText = 'Das geht nur in der Android-App.'; return; }
+        if (r.fehler && !r.neueste) {
+            el.innerText = 'Keine Verbindung zu GitHub. Bitte später noch einmal versuchen.';
+        } else if (r.neuer) {
+            el.innerHTML = `Version ${sicher(r.neueste)} ist verfügbar (du hast ${sicher(r.installiert)}). <a href="${UPDATE_SEITE}" target="_blank" rel="noopener">Jetzt herunterladen</a>`;
+        } else {
+            el.innerText = `Du hast die neueste Version (${r.installiert}).`;
+        }
+    }
+
+    function updateHinweisZeigen(installiert, neueste, trotzWeggetippt) {
         const box = document.getElementById('updateHinweis');
         if (!box) return;
-        // Weggetippt: für diese Version 24 Stunden nicht mehr zeigen
+        // Weggetippt: für diese Version 24 Stunden nicht mehr zeigen (außer beim Suchen per Knopf)
         const [zuVersion, zuZeit] = speicherLesen('planer_update_zu').split('|');
-        const weggetippt = zuVersion === neueste && Date.now() - (Number(zuZeit) || 0) < 24 * 3600 * 1000;
+        const weggetippt = !trotzWeggetippt && zuVersion === neueste && Date.now() - (Number(zuZeit) || 0) < 24 * 3600 * 1000;
         if (!neueste || !versionNeuer(neueste, installiert) || weggetippt) { box.style.display = 'none'; return; }
         document.getElementById('updateHinweisText').innerText = `Neue Version ${neueste} verfügbar (du hast ${installiert})`;
         const link = document.getElementById('updateHinweisLink');
