@@ -465,7 +465,13 @@ body.dark .cal-day.has-shift { background: var(--gelb); color: #0A0A0A; }
 .cal-day.mehrarbeit-tag { box-shadow: inset 0 -4px 0 var(--orange); }
 .cal-day.krank-tag { background: var(--krank); color: #0A0A0A; }
 .cal-day.urlaub-tag { background: #FFFFFF; color: #0A0A0A; border-color: #0A0A0A; }
-body.dark .cal-day.urlaub-tag { background: #F5F5F5; }
+/* Dunkelmodus: "body.dark .cal-day" ist spezifischer als die einzelnen Tagesarten - sie brauchen daher eigene Dunkel-Regeln,
+   sonst verlieren Feiertag/Sondertag/Krank ihre Farbe und Urlaub zeigt weisse Schrift auf weissem Grund */
+body.dark .cal-day.feiertag { background: var(--orange); color: #0A0A0A; }
+body.dark .cal-day.sondertag { background: #FFB27A; color: #0A0A0A; }
+body.dark .cal-day.has-shift.feiertag, body.dark .cal-day.has-shift.sondertag { background: var(--orange); color: #0A0A0A; }
+body.dark .cal-day.krank-tag { background: var(--krank); color: #0A0A0A; }
+body.dark .cal-day.urlaub-tag { background: #F5F5F5; color: #0A0A0A; }
 .cal-day.frei-tag { background: rgba(10, 10, 10, .14); color: #0A0A0A; }
 body.dark .cal-day.frei-tag { background: #26262A; color: #F5F5F5; }
 .cal-day.heute { border-color: #0A0A0A; box-shadow: 0 0 0 2px #FFFFFF; }
@@ -478,7 +484,9 @@ body.dark .cal-day.gewaehlt { outline-color: var(--gelb); }
 .legende i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; border: 1px solid rgba(10, 10, 10, .5); }
 .l-dienst { background: #0A0A0A; } .l-feiertag { background: var(--orange); } .l-urlaub { background: #FFFFFF; }
 .l-krank { background: var(--krank); } .l-frei { background: rgba(10, 10, 10, .2); }
+body.dark .legende i { border-color: rgba(255, 255, 255, .4); }
 body.dark .l-dienst { background: var(--gelb); border-color: transparent; }
+body.dark .l-frei { background: #26262A; }
 
 .tag-karte { background: var(--karte); color: var(--karte-text); border: var(--karte-rand); border-radius: 24px; padding: 16px; margin-bottom: 4px; }
 .tag-karte-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
