@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.view.View;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
 import android.widget.RemoteViews;
@@ -129,15 +130,22 @@ public class KalenderWidgetProvider extends AppWidgetProvider {
 
             String zustand = "normal";
             String zeile2 = "";
+            // Feiertag bzw. Sondertag (Heiligabend, Silvester ...) dieses Datums: "feiertag" oder "sondertag", sonst leer
+            String ftZustand = ft == null ? "" : ("f".equals(ft.optString("a", "")) ? "feiertag" : "sondertag");
+            boolean ftMarke = false;   // Feiertag-Punkt an der Tageszahl bei Krank/Urlaub/Frei
             if (sch != null) {
                 String typ = sch.optString("t", "");
-                if ("krank".equals(typ)) { zustand = "krank"; zeile2 = "Krank"; }
-                else if ("urlaub".equals(typ)) { zustand = "urlaub"; zeile2 = "Urlaub"; }
-                else if ("frei".equals(typ)) { zustand = "frei"; zeile2 = "Frei"; }
-                else if (sch.optBoolean("m", false)) { zustand = "mehrarbeit"; zeile2 = sch.optString("s", ""); }
-                else { zustand = "schicht"; zeile2 = sch.optString("s", ""); }
+                if ("krank".equals(typ)) { zustand = "krank"; zeile2 = "Krank"; ftMarke = !ftZustand.isEmpty(); }
+                else if ("urlaub".equals(typ)) { zustand = "urlaub"; zeile2 = "Urlaub"; ftMarke = !ftZustand.isEmpty(); }
+                else if ("frei".equals(typ)) { zustand = "frei"; zeile2 = "Frei"; ftMarke = !ftZustand.isEmpty(); }
+                else {
+                    // Ein Dienst an einem Feiertag bekommt die Feiertagsfarbe (wie im Kalender der App), die Zeile darunter bleibt der Dienstbeginn
+                    boolean mehr = sch.optBoolean("m", false);
+                    zustand = !ftZustand.isEmpty() ? ftZustand : (mehr ? "mehrarbeit" : "schicht");
+                    zeile2 = sch.optString("s", "");
+                }
             } else if (ft != null) {
-                zustand = "f".equals(ft.optString("a", "")) ? "feiertag" : "sondertag";
+                zustand = ftZustand;
                 zeile2 = ft.optString("k", "");
             }
 
@@ -149,6 +157,13 @@ public class KalenderWidgetProvider extends AppWidgetProvider {
             // Zeile 1: Tageszahl fett, Zeile 2 (Dienstbeginn, Art des Tages oder Feiertag) kleiner
             SpannableStringBuilder text = new SpannableStringBuilder(String.valueOf(tag));
             text.setSpan(new StyleSpan(Typeface.BOLD), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (ftMarke) {
+                // Krank/Urlaub/Frei an einem Feiertag: kleiner oranger Punkt hinter der Tageszahl
+                int punktStart = text.length();
+                text.append(" \u25CF");
+                text.setSpan(new RelativeSizeSpan(0.6f), punktStart, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                text.setSpan(new ForegroundColorSpan(Color.parseColor("#FF8A3D")), punktStart, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
             if (!zeile2.isEmpty()) {
                 int start = text.length() + 1;
                 text.append("\n").append(zeile2);
