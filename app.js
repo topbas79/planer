@@ -4702,6 +4702,7 @@
 
         kalenderTagKarteRendern();
         kalenderMonatKarteRendern();
+        kalenderJahrKarteRendern();
     }
 
     // Stunden mit zwei Nachkommastellen wie auf der Abrechnung: "24,48 Std."
@@ -4765,6 +4766,71 @@
             </div>
             ${zeilen.join('')}
             <p class="zuschlag-hinweis">Wird mit der Abrechnung im ${zahlMonat} ausgezahlt.</p>
+        </div>`;
+    }
+
+    // Zahlen eines Jahres, gerechnet bis einschließlich dem aktuellen Monat ("Stand heute", wie auf der Startseite):
+    // Nachtschichten, Zuschläge nach Art und das geschätzte Brutto-Einkommen.
+    function jahresZahlen(jahr) {
+        const heuteMonat = heutigesDatumStr().slice(0, 7);
+        const summen = {};
+        const monate = new Set();
+        let zuschlaege = 0, aufschlag = 0, nachtDienste = 0, dienste = 0;
+        Object.keys(gespeicherteSchichten).forEach(k => {
+            if (!k.startsWith(jahr + '-') || k.slice(0, 7) > heuteMonat) return;
+            monate.add(k.slice(0, 7));
+            const sch = gespeicherteSchichten[k];
+            if (sch.typ) { aufschlag += sch.aufschlagEuro || 0; return; }
+            dienste++;
+            zuschlaege += sch.zuschlagSumme || 0;
+            if (nachtMinutenVon(sch) > 0) nachtDienste++;
+            zuschlagPositionen(sch).forEach(p => {
+                const e = summen[p.name] || (summen[p.name] = { minuten: 0, euro: 0 });
+                e.minuten += p.minuten;
+                e.euro += p.euro;
+            });
+        });
+        // Festes Entgelt für alle Monate vom ersten bis zum letzten Monat mit Einträgen (auch Monate dazwischen ohne Eintrag)
+        const sortiert = [...monate].sort();
+        const anzahlMonate = sortiert.length ? Number(sortiert[sortiert.length - 1].slice(5)) - Number(sortiert[0].slice(5)) + 1 : 0;
+        const festMonat = ein.monatsentgelt + ein.unregelm + ein.dienstklasse;
+        const fest = festMonat * anzahlMonate;
+        return {
+            summen, dienste, nachtDienste, aufschlag, zuschlaege, monate: anzahlMonate,
+            fest, einkommen: fest + zuschlaege + aufschlag,
+            von: monate.size ? MONATSNAMEN[Number([...monate].sort()[0].slice(5)) - 1] : '',
+            bis: monate.size ? MONATSNAMEN[Number([...monate].sort().pop().slice(5)) - 1] : ''
+        };
+    }
+
+    // Unter der Monatsübersicht: das ganze Jahr (Nachtschichten, Zuschläge nach Art, Einkommen)
+    function kalenderJahrKarteRendern() {
+        const el = document.getElementById('kalenderJahrKarte');
+        if (!el) return;
+        const jahr = aktuellesDatumAnzeige.getFullYear();
+        const z = jahresZahlen(jahr);
+        if (!z.monate) { el.innerHTML = ''; return; }
+
+        const reihenfolge = ['Nacht', 'Samstag', 'Sonntag', 'Feiertag', 'Sondertag', 'Mehrarbeit', 'Vergütung Mehrarbeit-Tag'];
+        const zeile = (name, mitte, euro, fett) =>
+            `<div class="zuschlag-zeile${fett ? ' fett' : ''}"><span>${sicher(name)}</span><span>${sicher(mitte || '')}</span><span>${euro === null ? '' : euroText(euro)}</span></div>`;
+        const arten = reihenfolge.filter(n => z.summen[n]).map(n =>
+            zeile(n, n.startsWith('Vergütung') ? '' : stdAbrechnung(z.summen[n].minuten), z.summen[n].euro));
+        if (z.aufschlag >= 0.005) arten.push(zeile('Krank-/Urlaubsaufschlag', '', z.aufschlag));
+
+        el.innerHTML = `<div class="zuschlag-karte">
+            <div class="zuschlag-kopf">
+                <span class="ueberschrift-klein">Einkommen ${jahr}</span>
+                <b>${euroText(z.einkommen)}</b>
+            </div>
+            <div class="zuschlag-unter">brutto, ${z.von === z.bis ? sicher(z.bis) : sicher(z.von) + ' bis ' + sicher(z.bis)}</div>
+            ${zeile('Festes Entgelt', z.monate + (z.monate === 1 ? ' Monat' : ' Monate'), z.fest)}
+            ${zeile('Zuschläge', '', z.zuschlaege + z.aufschlag)}
+            <div class="zuschlag-teil">Nachtschichten und Zuschläge</div>
+            ${zeile('Nachtschichten', z.nachtDienste + (z.nachtDienste === 1 ? ' Dienst' : ' Dienste'), null)}
+            ${arten.join('')}
+            ${zeile('Zuschläge gesamt', '', z.zuschlaege + z.aufschlag, true)}
+            <p class="zuschlag-hinweis">Nach Dienstmonat gerechnet, die BVG zahlt die Zuschläge zwei Monate später. Das feste Entgelt ist mit deinem aktuellen Monatsentgelt geschätzt, ohne Sonderzahlungen wie Urlaubsgeld.</p>
         </div>`;
     }
 

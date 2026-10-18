@@ -495,6 +495,9 @@ body.dark .tag-karte-dienst { background: var(--gelb); color: #0A0A0A; }
 .zuschlag-zeile { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 6px 0; border-top: 1px solid var(--karte-linie); font-size: .95rem; }
 .zuschlag-zeile span:nth-child(2) { color: var(--karte-soft); text-align: right; }
 .zuschlag-zeile span:last-child { font-weight: 700; text-align: right; min-width: 76px; }
+.zuschlag-unter { font-size: .85rem; color: var(--karte-soft); margin: -4px 0 8px 0; }
+.zuschlag-teil { font-size: .72rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--karte-soft); margin: 14px 0 2px 0; }
+.zuschlag-zeile.fett { font-weight: 800; }
 .zuschlag-hinweis { font-size: .82rem; color: var(--karte-soft); margin: 10px 0 0 0; }
 .cal-day .euro.zuschlag { font-size: .58rem; opacity: .9; }
 .update-hinweis { display: flex; align-items: center; gap: 10px; margin: 0 0 12px 0; padding: 10px 10px 10px 14px; border-radius: 16px; background: var(--schwarz); color: var(--gelb); font-size: .92rem; font-weight: 700; }
